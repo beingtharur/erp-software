@@ -1,0 +1,65 @@
+import { getLeaveRequests } from "@/lib/queries/hrms";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { formatDate, titleCase } from "@/lib/format";
+import { LeaveDecisionButtons } from "@/components/hrms/leave-decision-buttons";
+
+const statusVariant: Record<string, "default" | "secondary" | "destructive"> = {
+  APPROVED: "default",
+  PENDING: "secondary",
+  REJECTED: "destructive",
+};
+
+export default async function LeavePage() {
+  const requests = await getLeaveRequests();
+
+  return (
+    <div className="rounded-lg border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Employee</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>Duration</TableHead>
+            <TableHead className="text-right">Days</TableHead>
+            <TableHead>Reason</TableHead>
+            <TableHead>Applied On</TableHead>
+            <TableHead className="text-right">Status / Action</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {requests.map((leave) => (
+            <TableRow key={leave.id}>
+              <TableCell className="font-medium">{leave.employee.name}</TableCell>
+              <TableCell className="text-muted-foreground">{titleCase(leave.type)}</TableCell>
+              <TableCell className="text-muted-foreground">
+                {formatDate(leave.startDate)} – {formatDate(leave.endDate)}
+              </TableCell>
+              <TableCell className="text-right">{leave.days}</TableCell>
+              <TableCell className="max-w-48 truncate text-muted-foreground">{leave.reason}</TableCell>
+              <TableCell className="text-muted-foreground">{formatDate(leave.appliedOn)}</TableCell>
+              <TableCell className="text-right">
+                {leave.status === "PENDING" ? (
+                  <div className="flex justify-end">
+                    <LeaveDecisionButtons leaveId={leave.id} />
+                  </div>
+                ) : (
+                  <Badge variant={statusVariant[leave.status]} className="font-normal">
+                    {titleCase(leave.status)}
+                  </Badge>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}

@@ -1,0 +1,705 @@
+// EOS Techno Ops Platform — demo schema
+// Covers CRM, HRMS, Vendor Management, and GPS & Field Tracking
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ---------- Auth ----------
+
+enum AccessRole {
+  ADMIN
+  SALES
+  FIELD
+  HR
+  PROCUREMENT
+  FINANCE
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  passwordHash  String
+  passwordSalt  String
+  accessRole    AccessRole
+  employeeId    String?        @unique
+  employee      Employee?      @relation(fields: [employeeId], references: [id])
+  notifications Notification[]
+  createdAt     DateTime       @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  message   String
+  href      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+}
+
+// ---------- Shared / HRMS ----------
+
+enum EmployeeRole {
+  INSTALLATION_CREW
+  TECHNICIAN
+  SALES_REP
+  ENGINEER
+  PROJECT_MANAGER
+  ADMIN
+  HR
+  FINANCE
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  ON_LEAVE
+  INACTIVE
+}
+
+model Employee {
+  id             String   @id @default(cuid())
+  employeeCode   String   @unique
+  name           String
+  role           EmployeeRole
+  department     String
+  email          String   @unique
+  phone          String
+  dateOfJoining  DateTime
+  status         EmployeeStatus @default(ACTIVE)
+  baseLocation   String
+  avatarSeed     String
+  reportingToId  String?
+  reportingTo    Employee?  @relation("ReportsTo", fields: [reportingToId], references: [id])
+  directReports  Employee[] @relation("ReportsTo")
+
+  user           User?
+
+  attendances    Attendance[]
+  leaveRequests  LeaveRequest[]
+  payrollRecords PayrollRecord[]
+  timesheets     Timesheet[]
+  ownedLeads     Lead[]           @relation("LeadOwner")
+  siteVisits     SiteVisit[]
+  locationPings  LocationPing[]
+  visitLogs      VisitLog[]
+
+  approvalRequestsMade    ApprovalRequest[] @relation("ApprovalRequestedBy")
+  approvalRequestsDecided ApprovalRequest[] @relation("ApprovalDecidedBy")
+  personalTasks           PersonalTask[]
+  assignedProjectTasks    ProjectTask[]
+  assignedTickets         SupportTicket[]
+  expenseClaims           ExpenseClaim[]
+  budgetsRequested        Budget[]
+  documents               EmployeeDocument[] @relation("EmployeeDocuments")
+  documentsUploaded       EmployeeDocument[] @relation("DocumentUploadedBy")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  ON_LEAVE
+  HOLIDAY
+}
+
+model Attendance {
+  id         String            @id @default(cuid())
+  employeeId String
+  employee   Employee          @relation(fields: [employeeId], references: [id])
+  date       DateTime
+  checkIn    DateTime?
+  checkOut   DateTime?
+  status     AttendanceStatus
+  hoursWorked Float            @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@unique([employeeId, date])
+}
+
+enum LeaveType {
+  SICK
+  CASUAL
+  EARNED
+  UNPAID
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model LeaveRequest {
+  id         String      @id @default(cuid())
+  employeeId String
+  employee   Employee    @relation(fields: [employeeId], references: [id])
+  type       LeaveType
+  startDate  DateTime
+  endDate    DateTime
+  days       Float
+  status     LeaveStatus @default(PENDING)
+  reason     String
+  appliedOn  DateTime    @default(now())
+  decidedOn  DateTime?
+  decidedBy  String?
+}
+
+enum PayrollStatus {
+  PROCESSED
+  PENDING
+}
+
+model PayrollRecord {
+  id           String        @id @default(cuid())
+  employeeId   String
+  employee     Employee      @relation(fields: [employeeId], references: [id])
+  month        Int
+  year         Int
+  basicSalary  Float
+  allowances   Float
+  deductions   Float
+  netPay       Float
+  status       PayrollStatus @default(PENDING)
+  paidOn       DateTime?
+
+  @@unique([employeeId, month, year])
+}
+
+model Timesheet {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  projectId   String?
+  project     Project? @relation(fields: [projectId], references: [id])
+  date        DateTime
+  hoursLogged Float
+  taskDescription String
+  billable    Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+}
+
+// ---------- CRM ----------
+
+enum Industry {
+  PHARMACEUTICALS
+  CHEMICALS
+  COSMETICS
+  BIOTECH
+  FOOD_AND_BEVERAGE
+}
+
+model Client {
+  id            String   @id @default(cuid())
+  name          String
+  industry      Industry
+  tier          String
+  city          String
+  state         String
+  contactName   String
+  contactTitle  String
+  contactEmail  String
+  contactPhone  String
+  logoSeed      String
+  status        String   @default("Active")
+
+  leads         Lead[]
+  quotations    Quotation[]
+  siteVisits    SiteVisit[]
+  amcContracts  AmcContract[]
+  projects      Project[]
+  geofenceZones GeofenceZone[]
+  supportTickets SupportTicket[]
+
+  createdAt DateTime @default(now())
+}
+
+enum LeadSource {
+  RFQ
+  TENDER
+  REFERRAL
+  WEBSITE
+  EXHIBITION
+}
+
+enum LeadStage {
+  NEW
+  QUALIFIED
+  QUOTATION_SENT
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum ProductLine {
+  PROCESS_EQUIPMENT
+  CONTAINMENT_SYSTEMS
+  PIPING_DISTRIBUTION
+  TURNKEY_PROJECTS
+}
+
+model Lead {
+  id                 String      @id @default(cuid())
+  title              String
+  clientId           String
+  client             Client      @relation(fields: [clientId], references: [id])
+  source             LeadSource
+  productLine        ProductLine
+  stage              LeadStage   @default(NEW)
+  value              Float
+  probability        Int
+  expectedCloseDate  DateTime
+  ownerId            String
+  owner              Employee    @relation("LeadOwner", fields: [ownerId], references: [id])
+  notes              String?
+
+  quotations Quotation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model Quotation {
+  id            String          @id @default(cuid())
+  quoteNumber   String          @unique
+  leadId        String?
+  lead          Lead?           @relation(fields: [leadId], references: [id])
+  clientId      String
+  client        Client          @relation(fields: [clientId], references: [id])
+  amount        Float
+  status        QuotationStatus @default(DRAFT)
+  revision      Int             @default(1)
+  validUntil    DateTime
+  issuedOn      DateTime        @default(now())
+
+  lineItems     QuotationLineItem[]
+}
+
+model QuotationLineItem {
+  id          String    @id @default(cuid())
+  quotationId String
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float
+  unitPrice   Float
+  amount      Float
+  sortOrder   Int       @default(0)
+}
+
+enum SiteVisitStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+model SiteVisit {
+  id            String          @id @default(cuid())
+  clientId      String
+  client        Client          @relation(fields: [clientId], references: [id])
+  projectId     String?
+  project       Project?        @relation(fields: [projectId], references: [id])
+  purpose       String
+  scheduledDate DateTime
+  assignedToId  String
+  assignedTo    Employee        @relation(fields: [assignedToId], references: [id])
+  status        SiteVisitStatus @default(SCHEDULED)
+  notes         String?
+  followUpDate  DateTime?
+}
+
+enum AmcStatus {
+  ACTIVE
+  EXPIRING_SOON
+  EXPIRED
+}
+
+model AmcContract {
+  id               String    @id @default(cuid())
+  contractNumber   String    @unique
+  clientId         String
+  client           Client    @relation(fields: [clientId], references: [id])
+  equipmentCovered String
+  startDate        DateTime
+  endDate          DateTime
+  value            Float
+  status           AmcStatus @default(ACTIVE)
+  lastServiceDate  DateTime?
+  nextServiceDate  DateTime?
+
+  supportTickets   SupportTicket[]
+}
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  COMMISSIONING
+  COMPLETED
+}
+
+model Project {
+  id             String        @id @default(cuid())
+  name           String
+  clientId       String
+  client         Client        @relation(fields: [clientId], references: [id])
+  productLine    ProductLine
+  industry       Industry
+  value          Float
+  startDate      DateTime
+  targetEndDate  DateTime
+  status         ProjectStatus @default(PLANNING)
+  progressPercent Int          @default(0)
+
+  timesheets     Timesheet[]
+  siteVisits     SiteVisit[]
+  geofenceZones  GeofenceZone[]
+  milestones     Milestone[]
+  tasks          ProjectTask[]
+}
+
+enum MilestoneStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  DELAYED
+}
+
+model Milestone {
+  id        String          @id @default(cuid())
+  projectId String
+  project   Project         @relation(fields: [projectId], references: [id])
+  title     String
+  dueDate   DateTime
+  status    MilestoneStatus @default(PLANNED)
+  sortOrder Int             @default(0)
+
+  tasks ProjectTask[]
+}
+
+enum ProjectTaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+model ProjectTask {
+  id          String            @id @default(cuid())
+  projectId   String
+  project     Project           @relation(fields: [projectId], references: [id])
+  milestoneId String?
+  milestone   Milestone?        @relation(fields: [milestoneId], references: [id])
+  title       String
+  assigneeId  String?
+  assignee    Employee?         @relation(fields: [assigneeId], references: [id])
+  status      ProjectTaskStatus @default(TODO)
+  dueDate     DateTime?
+  createdAt   DateTime          @default(now())
+
+  @@index([projectId, status])
+}
+
+// ---------- Helpdesk / Ticketing ----------
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model SupportTicket {
+  id              String         @id @default(cuid())
+  ticketNumber    String         @unique
+  clientId        String
+  client          Client         @relation(fields: [clientId], references: [id])
+  amcContractId   String?
+  amcContract     AmcContract?   @relation(fields: [amcContractId], references: [id])
+  subject         String
+  description     String
+  priority        TicketPriority @default(MEDIUM)
+  status          TicketStatus   @default(OPEN)
+  assigneeId      String?
+  assignee        Employee?      @relation(fields: [assigneeId], references: [id])
+  resolutionNotes String?
+  createdAt       DateTime       @default(now())
+  resolvedAt      DateTime?
+
+  @@index([status])
+  @@index([clientId])
+}
+
+// ---------- Vendor Management ----------
+
+model Vendor {
+  id           String   @id @default(cuid())
+  name         String
+  category     String
+  contactName  String
+  contactEmail String
+  contactPhone String
+  city         String
+  rating       Float
+  status       String   @default("Active")
+
+  purchaseOrders PurchaseOrder[]
+  payments       VendorPayment[]
+
+  createdAt DateTime @default(now())
+}
+
+enum PoStatus {
+  DRAFT
+  SENT
+  CONFIRMED
+  DELIVERED
+  CANCELLED
+}
+
+model PurchaseOrder {
+  id                String   @id @default(cuid())
+  poNumber          String   @unique
+  vendorId          String
+  vendor            Vendor   @relation(fields: [vendorId], references: [id])
+  itemsDescription  String
+  amount            Float
+  orderDate         DateTime
+  expectedDelivery  DateTime
+  status            PoStatus @default(DRAFT)
+
+  payments VendorPayment[]
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  OVERDUE
+}
+
+model VendorPayment {
+  id              String        @id @default(cuid())
+  vendorId        String
+  vendor          Vendor        @relation(fields: [vendorId], references: [id])
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  amount          Float
+  dueDate         DateTime
+  paidDate        DateTime?
+  status          PaymentStatus @default(PENDING)
+  method          String?
+}
+
+// ---------- GPS & Field Tracking ----------
+
+model GeofenceZone {
+  id         String   @id @default(cuid())
+  name       String
+  clientId   String?
+  client     Client?  @relation(fields: [clientId], references: [id])
+  projectId  String?
+  project    Project? @relation(fields: [projectId], references: [id])
+  latitude   Float
+  longitude  Float
+  radiusMeters Int    @default(300)
+
+  locationPings LocationPing[]
+  visitLogs     VisitLog[]
+}
+
+model LocationPing {
+  id           String        @id @default(cuid())
+  employeeId   String
+  employee     Employee      @relation(fields: [employeeId], references: [id])
+  latitude     Float
+  longitude    Float
+  timestamp    DateTime      @default(now())
+  geofenceId   String?
+  geofence     GeofenceZone? @relation(fields: [geofenceId], references: [id])
+  isDeviceGps  Boolean       @default(false)
+}
+
+enum VisitLogStatus {
+  CHECKED_IN
+  CHECKED_OUT
+}
+
+model VisitLog {
+  id            String          @id @default(cuid())
+  employeeId    String
+  employee      Employee        @relation(fields: [employeeId], references: [id])
+  geofenceId    String
+  geofence      GeofenceZone    @relation(fields: [geofenceId], references: [id])
+  purpose       String
+  checkInTime   DateTime
+  checkOutTime  DateTime?
+  durationMinutes Int?
+  status        VisitLogStatus  @default(CHECKED_IN)
+  notes         String?
+}
+
+// ---------- Approval Engine ----------
+// Generic approval routing, reusable across entity types. Purchase Orders are the
+// first consumer; Finance expense/budget approvals are expected to plug in the same
+// way in a later phase (see ApprovalEntityType).
+
+enum ApprovalEntityType {
+  PURCHASE_ORDER
+  EXPENSE_CLAIM
+  BUDGET
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ApprovalRequest {
+  id            String             @id @default(cuid())
+  entityType    ApprovalEntityType
+  entityId      String
+  requestedById String
+  requestedBy   Employee           @relation("ApprovalRequestedBy", fields: [requestedById], references: [id])
+  approverRole  AccessRole
+  status        ApprovalStatus     @default(PENDING)
+  decidedById   String?
+  decidedBy     Employee?          @relation("ApprovalDecidedBy", fields: [decidedById], references: [id])
+  decidedOn     DateTime?
+  note          String?
+  createdAt     DateTime           @default(now())
+
+  @@index([entityType, entityId])
+  @@index([status, approverRole])
+}
+
+// ---------- Personal Productivity ----------
+
+enum PersonalTaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+model PersonalTask {
+  id          String             @id @default(cuid())
+  employeeId  String
+  employee    Employee           @relation(fields: [employeeId], references: [id])
+  title       String
+  description String?
+  status      PersonalTaskStatus @default(TODO)
+  dueDate     DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([employeeId, status])
+}
+
+// ---------- Finance ----------
+// Expense claims and budget proposals both route through the generalized approval
+// engine (see ApprovalEntityType) — expense claims to FINANCE, budgets to ADMIN.
+
+enum ExpenseCategory {
+  TRAVEL
+  MEALS
+  SUPPLIES
+  EQUIPMENT
+  SOFTWARE
+  OTHER
+}
+
+enum ExpenseClaimStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REIMBURSED
+}
+
+model ExpenseClaim {
+  id           String              @id @default(cuid())
+  claimNumber  String              @unique
+  employeeId   String
+  employee     Employee            @relation(fields: [employeeId], references: [id])
+  category     ExpenseCategory
+  amount       Float
+  expenseDate  DateTime
+  description  String
+  status       ExpenseClaimStatus  @default(PENDING)
+  createdAt    DateTime            @default(now())
+  reimbursedOn DateTime?
+
+  @@index([employeeId, status])
+}
+
+enum BudgetStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Budget {
+  id             String          @id @default(cuid())
+  department     String
+  category       ExpenseCategory
+  startDate      DateTime
+  endDate        DateTime
+  proposedAmount Float
+  requestedById  String
+  requestedBy    Employee        @relation(fields: [requestedById], references: [id])
+  status         BudgetStatus    @default(PENDING)
+  createdAt      DateTime        @default(now())
+
+  @@index([department, category])
+}
+
+// ---------- Document Management ----------
+// Local filesystem storage for dev/demo (see src/lib/storage.ts) — swappable to
+// Vercel Blob/S3 in production without changing this model or its callers.
+
+enum DocumentType {
+  ID_PROOF
+  OFFER_LETTER
+  CONTRACT
+  CERTIFICATE
+  OTHER
+}
+
+model EmployeeDocument {
+  id           String       @id @default(cuid())
+  employeeId   String
+  employee     Employee     @relation("EmployeeDocuments", fields: [employeeId], references: [id])
+  type         DocumentType
+  fileName     String
+  fileUrl      String
+  storageKey   String
+  fileSize     Int
+  uploadedById String
+  uploadedBy   Employee     @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
+  createdAt    DateTime     @default(now())
+
+  @@index([employeeId])
+}

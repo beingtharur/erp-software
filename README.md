@@ -1,5 +1,22 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Database setup
+
+This app requires a Postgres database — provision one (e.g. via [Neon](https://neon.tech), [Supabase](https://supabase.com), or any Postgres host) and set `DATABASE_URL` in `.env` or `.env.local`:
+
+```
+DATABASE_URL="postgresql://user:password@host:5432/eostechno?sslmode=require"
+```
+
+Then apply the schema and load demo data:
+
+```bash
+npx prisma migrate deploy   # creates all tables
+npx tsx prisma/seed.ts      # loads demo employees, clients, leads, etc.
+```
+
+`npm run dev` / `npm run build` will throw immediately on startup if `DATABASE_URL` isn't set — that's intentional (see `src/lib/db.ts`).
+
 ## Getting Started
 
 First, run the development server:
