@@ -125,16 +125,6 @@ export function LoginForm() {
         </CardContent>
       </Card>
 
-      <div className="lg:col-span-2">
-        <p className="text-center text-xs text-muted-foreground">
-          Need help? Contact{" "}
-          <a href="mailto:digitallyexist@gmail.com" className="underline">
-            digitallyexist@gmail.com
-          </a>{" "}
-          · +91 96256 33868
-        </p>
-      </div>
-
       <div className="flex flex-col gap-2.5">
         <p className="px-1 text-xs font-medium text-muted-foreground">
           Quick sign-in — try a role
@@ -156,6 +146,16 @@ export function LoginForm() {
             </span>
           </button>
         ))}
+      </div>
+
+      <div className="lg:col-span-2">
+        <p className="text-center text-xs text-muted-foreground">
+          Need help? Contact{" "}
+          <a href="mailto:digitallyexist@gmail.com" className="underline">
+            digitallyexist@gmail.com
+          </a>{" "}
+          · +91 96256 33868
+        </p>
       </div>
     </div>
   );
