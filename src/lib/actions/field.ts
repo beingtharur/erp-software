@@ -18,6 +18,7 @@ export async function checkIn(
 ): Promise<FormActionState> {
   await requireRole(["ADMIN", "FIELD"]);
   const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
   if (!user.employeeId) {
     return { error: "No employee record linked to this account." };
   }
@@ -36,7 +37,7 @@ export async function checkIn(
     return { error: "You're already checked in somewhere. Check out first." };
   }
 
-  const zone = await prisma.geofenceZone.findUnique({ where: { id: geofenceId } });
+  const zone = await prisma.geofenceZone.findFirst({ where: { id: geofenceId, organizationId } });
   if (!zone) {
     return { error: "Site not found." };
   }

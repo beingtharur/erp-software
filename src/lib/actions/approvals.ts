@@ -7,7 +7,12 @@ import { notifyEmployee } from "@/lib/notify";
 import { formatINR } from "@/lib/format";
 
 export async function decideApproval(approvalId: string, decision: "APPROVED" | "REJECTED") {
-  const approval = await prisma.approvalRequest.findUnique({ where: { id: approvalId } });
+  const decider = await getCurrentUser();
+  const organizationId = decider.organizationId!;
+
+  const approval = await prisma.approvalRequest.findFirst({
+    where: { id: approvalId, requestedBy: { organizationId } },
+  });
   if (!approval) {
     throw new Error("Approval request not found");
   }
@@ -16,9 +21,9 @@ export async function decideApproval(approvalId: string, decision: "APPROVED" | 
   }
 
   // The engine is generic: who's allowed to decide is data-driven off the request
-  // itself, not hardcoded per entity type.
+  // itself, not hardcoded per entity type. The organizationId filter above is what
+  // actually stops a same-role user in a different org from deciding this request.
   await requireRole([approval.approverRole]);
-  const decider = await getCurrentUser();
 
   await prisma.approvalRequest.update({
     where: { id: approvalId },
@@ -34,6 +39,20 @@ export async function decideApproval(approvalId: string, decision: "APPROVED" | 
         data: { status: decision === "APPROVED" ? "SENT" : "CANCELLED" },
         include: { vendor: true },
       });
+      if (decision === "APPROVED") {
+        // Approving a PO is what turns it into an actual payable — this is the
+        // only place a VendorPayment gets created for a purchase order.
+        await prisma.vendorPayment.create({
+          data: {
+            vendorId: po.vendorId,
+            purchaseOrderId: po.id,
+            amount: po.amount,
+            dueDate: po.expectedDelivery,
+            status: "PENDING",
+          },
+        });
+        revalidatePath("/vendors/payments");
+      }
       await notifyEmployee(
         approval.requestedById,
         `Purchase order ${po.poNumber} for ${po.vendor.name} was ${decision === "APPROVED" ? "approved" : "rejected"}.`,

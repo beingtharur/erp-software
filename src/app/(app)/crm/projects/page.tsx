@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getProjects } from "@/lib/queries/crm";
+import { getCurrentUser } from "@/lib/dal";
 import {
   Table,
   TableBody,
@@ -20,7 +21,8 @@ const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
 };
 
 export default async function ProjectsPage() {
-  const projects = await getProjects();
+  const user = await getCurrentUser();
+  const projects = await getProjects(user.organizationId!);
 
   return (
     <div className="rounded-lg border">

@@ -1,4 +1,5 @@
 import { getSiteVisits } from "@/lib/queries/crm";
+import { getCurrentUser } from "@/lib/dal";
 import {
   Table,
   TableBody,
@@ -11,7 +12,8 @@ import { formatDate } from "@/lib/format";
 import { SiteVisitStatusMenu } from "@/components/crm/site-visit-status-menu";
 
 export default async function SiteVisitsPage() {
-  const visits = await getSiteVisits();
+  const user = await getCurrentUser();
+  const visits = await getSiteVisits(user.organizationId!);
 
   return (
     <div className="rounded-lg border">

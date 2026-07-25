@@ -1,6 +1,6 @@
 import { SiteHeader } from "@/components/layout/site-header";
 import { SectionTabs } from "@/components/layout/section-tabs";
-import { requireRole } from "@/lib/dal";
+import { requireRole, requireModuleAccess } from "@/lib/dal";
 
 const tabs = [
   { title: "Pipeline", href: "/crm" },
@@ -14,6 +14,7 @@ const tabs = [
 
 export default async function CrmLayout({ children }: { children: React.ReactNode }) {
   await requireRole(["ADMIN", "SALES"]);
+  await requireModuleAccess("crm");
 
   return (
     <>

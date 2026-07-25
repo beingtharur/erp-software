@@ -30,6 +30,13 @@ type ClientOption = { id: string; name: string };
 type AmcOption = { id: string; contractNumber: string; clientId: string };
 type EmployeeOption = { id: string; name: string };
 
+const PRIORITY_LABEL: Record<string, string> = {
+  LOW: "Low",
+  MEDIUM: "Medium",
+  HIGH: "High",
+  CRITICAL: "Critical",
+};
+
 export function NewTicketSheet({
   clients,
   amcContracts,
@@ -91,9 +98,21 @@ export function NewTicketSheet({
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="amcContractId">Related AMC contract</Label>
-            <Select name="amcContractId" disabled={!clientId}>
+            <Select key={clientId} name="amcContractId" disabled={!clientId || relevantContracts.length === 0}>
               <SelectTrigger id="amcContractId" className="w-full">
-                <SelectValue placeholder="None" />
+                <SelectValue
+                  placeholder={
+                    !clientId
+                      ? "Select a client first"
+                      : relevantContracts.length === 0
+                        ? "No AMC contracts for this client"
+                        : "None"
+                  }
+                >
+                  {(value: unknown) =>
+                    relevantContracts.find((c) => c.id === value)?.contractNumber ?? "None"
+                  }
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {relevantContracts.map((c) => (
@@ -126,7 +145,7 @@ export function NewTicketSheet({
               <Label htmlFor="priority">Priority</Label>
               <Select name="priority" defaultValue="MEDIUM">
                 <SelectTrigger id="priority" className="w-full">
-                  <SelectValue />
+                  <SelectValue>{(value: unknown) => PRIORITY_LABEL[value as string] ?? "Medium"}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="LOW">Low</SelectItem>
@@ -140,7 +159,9 @@ export function NewTicketSheet({
               <Label htmlFor="assigneeId">Assignee</Label>
               <Select name="assigneeId">
                 <SelectTrigger id="assigneeId" className="w-full">
-                  <SelectValue placeholder="Unassigned" />
+                  <SelectValue placeholder="Unassigned">
+                    {(value: unknown) => employees.find((e) => e.id === value)?.name ?? "Unassigned"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {employees.map((e) => (

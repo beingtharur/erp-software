@@ -1,6 +1,6 @@
 import { SiteHeader } from "@/components/layout/site-header";
 import { SectionTabs } from "@/components/layout/section-tabs";
-import { requireRole } from "@/lib/dal";
+import { requireRole, requireModuleAccess } from "@/lib/dal";
 
 const tabs = [
   { title: "Expense Claims", href: "/finance" },
@@ -9,6 +9,7 @@ const tabs = [
 
 export default async function FinanceLayout({ children }: { children: React.ReactNode }) {
   await requireRole(["ADMIN", "FINANCE"]);
+  await requireModuleAccess("finance");
 
   return (
     <>

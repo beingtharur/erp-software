@@ -1,4 +1,5 @@
 import { getOrgChart } from "@/lib/queries/hrms";
+import { getCurrentUser } from "@/lib/dal";
 import { OrgChart, type OrgNode } from "@/components/hrms/org-chart";
 
 type FlatEmployee = {
@@ -29,7 +30,8 @@ function buildTree(employees: FlatEmployee[]): OrgNode[] {
 }
 
 export default async function OrgChartPage() {
-  const employees = await getOrgChart();
+  const user = await getCurrentUser();
+  const employees = await getOrgChart(user.organizationId!);
   const roots = buildTree(employees);
 
   return (

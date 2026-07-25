@@ -5,18 +5,28 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getCurrentUser } from "@/lib/dal";
 import {
   getMyAttendance,
+  getMyAttendanceToday,
   getMyLeaveRequests,
   getMyTimesheets,
   getMyTasks,
+  getTasksAssignedByMe,
+  getIsManager,
+  getMyDailySummaries,
+  getTodaysSummary,
+  getTeamDailySummaries,
   getProjectOptions,
 } from "@/lib/queries/me";
 import { getMyExpenseClaims } from "@/lib/queries/finance";
+import { getAssignableEmployees } from "@/lib/queries/crm";
 import { formatDate, formatINR, initials, titleCase } from "@/lib/format";
 import { ApplyLeaveSheet } from "@/components/me/apply-leave-sheet";
 import { LogTimesheetSheet } from "@/components/me/log-timesheet-sheet";
 import { NewTaskSheet } from "@/components/me/new-task-sheet";
 import { TaskBoard } from "@/components/me/task-board";
+import { TaskDetailSheet } from "@/components/me/task-detail-sheet";
 import { NewExpenseClaimSheet } from "@/components/me/new-expense-claim-sheet";
+import { AttendanceCheckButton } from "@/components/me/attendance-check-button";
+import { DailySummaryForm } from "@/components/me/daily-summary-form";
 
 const leaveStatusVariant: Record<string, "default" | "secondary" | "destructive"> = {
   APPROVED: "default",
@@ -43,16 +53,37 @@ export default async function MyHrPage() {
   const user = await getCurrentUser();
   const employeeId = user.employeeId;
 
-  const [attendance, leaveRequests, timesheets, tasks, projects, expenseClaims] = employeeId
+  const [
+    attendance,
+    attendanceToday,
+    leaveRequests,
+    timesheets,
+    tasks,
+    projects,
+    expenseClaims,
+    isManager,
+    assignableEmployees,
+    todaysSummary,
+    myDailySummaries,
+  ] = employeeId
     ? await Promise.all([
         getMyAttendance(employeeId),
+        getMyAttendanceToday(employeeId),
         getMyLeaveRequests(employeeId),
         getMyTimesheets(employeeId),
         getMyTasks(employeeId),
-        getProjectOptions(),
+        getProjectOptions(user.organizationId!),
         getMyExpenseClaims(employeeId),
+        getIsManager(employeeId),
+        getAssignableEmployees(user.organizationId!),
+        getTodaysSummary(employeeId),
+        getMyDailySummaries(employeeId),
       ])
-    : [[], [], [], [], [], []];
+    : [[], null, [], [], [], [], [], false, [], null, []];
+
+  const [assignedTasks, teamSummaries] = employeeId && isManager
+    ? await Promise.all([getTasksAssignedByMe(employeeId), getTeamDailySummaries(employeeId)])
+    : [[], []];
 
   const presentCount = attendance.filter((a) => a.status === "PRESENT").length;
 
@@ -81,6 +112,12 @@ export default async function MyHrPage() {
                 <CardTitle className="text-sm">Recent attendance</CardTitle>
                 <CardDescription>{presentCount} present in last {attendance.length} days</CardDescription>
               </div>
+              {employeeId && (
+                <AttendanceCheckButton
+                  checkIn={attendanceToday?.checkIn ?? null}
+                  checkOut={attendanceToday?.checkOut ?? null}
+                />
+              )}
             </CardHeader>
             <CardContent className="space-y-2">
               {attendance.length === 0 && (
@@ -190,10 +227,104 @@ export default async function MyHrPage() {
               <h2 className="text-sm font-semibold">My Tasks</h2>
               <p className="text-xs text-muted-foreground">Your personal board</p>
             </div>
-            <NewTaskSheet />
+            <NewTaskSheet
+              currentEmployeeId={employeeId ?? undefined}
+              assignableEmployees={assignableEmployees}
+              isManager={isManager}
+            />
           </div>
           <TaskBoard tasks={tasks} />
         </div>
+
+        {isManager && (
+          <div className="flex flex-col gap-3">
+            <div>
+              <h2 className="text-sm font-semibold">Team Tasks</h2>
+              <p className="text-xs text-muted-foreground">Tasks you&apos;ve assigned to others</p>
+            </div>
+            <div className="rounded-lg border">
+              {assignedTasks.length === 0 ? (
+                <p className="p-4 text-sm text-muted-foreground">
+                  You haven&apos;t assigned any tasks yet.
+                </p>
+              ) : (
+                <div className="divide-y">
+                  {assignedTasks.map((t) => (
+                    <div key={t.id} className="flex items-center justify-between gap-3 p-3 text-sm">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{t.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {t.employee.name} · {titleCase(t.status)}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {t.isBlocked && (
+                          <Badge variant="destructive" className="font-normal">
+                            Blocked
+                          </Badge>
+                        )}
+                        <TaskDetailSheet task={t} viewerRole="assigner" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-3">
+          <div>
+            <h2 className="text-sm font-semibold">Evening Summary</h2>
+            <p className="text-xs text-muted-foreground">
+              What you completed, what&apos;s in progress, and your plan for tomorrow
+            </p>
+          </div>
+          <div className="rounded-lg border p-4">
+            <DailySummaryForm existing={todaysSummary} />
+          </div>
+          {myDailySummaries.length > 0 && (
+            <div className="flex flex-col gap-2">
+              {myDailySummaries.map((s) => (
+                <div key={s.id} className="rounded-md border p-3 text-sm">
+                  <p className="text-xs font-medium text-muted-foreground">{formatDate(s.date)}</p>
+                  {s.completedNote && <p className="mt-1"><span className="text-muted-foreground">Completed: </span>{s.completedNote}</p>}
+                  {s.blockersNote && <p className="mt-1"><span className="text-muted-foreground">Blockers: </span>{s.blockersNote}</p>}
+                  {s.nextDayPlan && <p className="mt-1"><span className="text-muted-foreground">Next day: </span>{s.nextDayPlan}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {isManager && (
+          <div className="flex flex-col gap-3">
+            <div>
+              <h2 className="text-sm font-semibold">Team Summaries</h2>
+              <p className="text-xs text-muted-foreground">Evening reports from your direct reports</p>
+            </div>
+            <div className="rounded-lg border">
+              {teamSummaries.length === 0 ? (
+                <p className="p-4 text-sm text-muted-foreground">No summaries submitted yet.</p>
+              ) : (
+                <div className="divide-y">
+                  {teamSummaries.map((s) => (
+                    <div key={s.id} className="p-3 text-sm">
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium">{s.employee.name}</p>
+                        <p className="text-xs text-muted-foreground">{formatDate(s.date)}</p>
+                      </div>
+                      {s.completedNote && <p className="mt-1 text-muted-foreground">Completed: {s.completedNote}</p>}
+                      {s.pendingNote && <p className="mt-1 text-muted-foreground">Pending: {s.pendingNote}</p>}
+                      {s.blockersNote && <p className="mt-1 text-destructive">Blockers: {s.blockersNote}</p>}
+                      {s.nextDayPlan && <p className="mt-1 text-muted-foreground">Next day: {s.nextDayPlan}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

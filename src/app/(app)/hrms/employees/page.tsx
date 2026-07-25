@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getEmployees } from "@/lib/queries/hrms";
+import { getCurrentUser } from "@/lib/dal";
 import {
   Table,
   TableBody,
@@ -20,7 +21,8 @@ const statusVariant: Record<string, "default" | "secondary" | "destructive"> = {
 };
 
 export default async function EmployeesPage() {
-  const employees = await getEmployees();
+  const user = await getCurrentUser();
+  const employees = await getEmployees(user.organizationId!);
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4">

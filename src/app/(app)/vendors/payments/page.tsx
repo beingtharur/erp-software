@@ -1,4 +1,5 @@
 import { getVendorPayments } from "@/lib/queries/vendor";
+import { getCurrentUser } from "@/lib/dal";
 import {
   Table,
   TableBody,
@@ -18,7 +19,8 @@ const statusVariant: Record<string, "default" | "secondary" | "destructive"> = {
 };
 
 export default async function VendorPaymentsPage() {
-  const payments = await getVendorPayments();
+  const user = await getCurrentUser();
+  const payments = await getVendorPayments(user.organizationId!);
 
   return (
     <div className="rounded-lg border">

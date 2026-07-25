@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getEmployeeDetail } from "@/lib/queries/hrms";
+import { getCurrentUser } from "@/lib/dal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -20,7 +21,8 @@ export default async function EmployeeDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const employee = await getEmployeeDetail(id);
+  const user = await getCurrentUser();
+  const employee = await getEmployeeDetail(id, user.organizationId!);
 
   if (!employee) notFound();
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useRef } from "react";
+import Link from "next/link";
 import { login, type LoginState } from "@/lib/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -113,6 +114,12 @@ export function LoginForm() {
             </Button>
             <p className="text-center text-xs text-muted-foreground">
               Demo password for every account: <span className="font-mono">demo123</span>
+            </p>
+            <p className="text-center text-xs text-muted-foreground">
+              New organization?{" "}
+              <Link href="/register" className="underline">
+                Start a free trial
+              </Link>
             </p>
           </form>
         </CardContent>

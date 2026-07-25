@@ -1,6 +1,6 @@
 import "server-only";
 import path from "node:path";
-import { mkdir, writeFile, unlink } from "node:fs/promises";
+import { mkdir, writeFile, unlink, readFile as fsReadFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 
 // Local filesystem storage for dev/demo use. The interface here (StoredFile,
@@ -13,7 +13,14 @@ export type StoredFile = {
   storageKey: string;
 };
 
-const UPLOAD_ROOT = path.join(process.cwd(), "public", "uploads");
+// DATA_DIR points uploads at a persistent-disk mount (e.g. Render's /data) in
+// production. Unset locally, so local dev is unaffected — files stay under
+// public/uploads and are served by Next's normal static file handling.
+// When DATA_DIR is set, files live outside public/ (on the mounted disk) and
+// are served by the app/api/uploads route instead.
+const UPLOAD_ROOT = process.env.DATA_DIR
+  ? path.join(process.env.DATA_DIR, "uploads")
+  : path.join(process.cwd(), "public", "uploads");
 
 export async function saveFile(file: File, folder: string): Promise<StoredFile> {
   const dir = path.join(UPLOAD_ROOT, folder);
@@ -26,7 +33,16 @@ export async function saveFile(file: File, folder: string): Promise<StoredFile> 
   const buffer = Buffer.from(await file.arrayBuffer());
   await writeFile(path.join(dir, fileName), buffer);
 
-  return { url: `/uploads/${storageKey}`, storageKey };
+  const url = process.env.DATA_DIR ? `/api/uploads/${storageKey}` : `/uploads/${storageKey}`;
+  return { url, storageKey };
+}
+
+export async function readFile(storageKey: string): Promise<Buffer | null> {
+  try {
+    return await fsReadFile(path.join(UPLOAD_ROOT, storageKey));
+  } catch {
+    return null;
+  }
 }
 
 export async function deleteFile(storageKey: string): Promise<void> {

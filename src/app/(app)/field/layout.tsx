@@ -1,6 +1,6 @@
 import { SiteHeader } from "@/components/layout/site-header";
 import { SectionTabs } from "@/components/layout/section-tabs";
-import { requireRole } from "@/lib/dal";
+import { requireRole, requireModuleAccess } from "@/lib/dal";
 
 const tabs = [
   { title: "Live Map", href: "/field" },
@@ -10,6 +10,7 @@ const tabs = [
 
 export default async function FieldLayout({ children }: { children: React.ReactNode }) {
   await requireRole(["ADMIN", "FIELD"]);
+  await requireModuleAccess("field");
 
   return (
     <>

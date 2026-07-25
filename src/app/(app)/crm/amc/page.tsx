@@ -1,4 +1,5 @@
 import { getAmcContracts } from "@/lib/queries/crm";
+import { getCurrentUser } from "@/lib/dal";
 import {
   Table,
   TableBody,
@@ -17,7 +18,8 @@ const badgeVariant: Record<string, "default" | "secondary" | "destructive" | "ou
 };
 
 export default async function AmcPage() {
-  const contracts = await getAmcContracts();
+  const user = await getCurrentUser();
+  const contracts = await getAmcContracts(user.organizationId!);
 
   return (
     <div className="rounded-lg border">

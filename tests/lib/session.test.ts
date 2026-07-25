@@ -5,6 +5,8 @@ const samplePayload: SessionPayload = {
   userId: "user_123",
   accessRole: "ADMIN",
   name: "Test User",
+  organizationId: "org_123",
+  isSuperAdmin: false,
 };
 
 describe("session JWT encrypt/decrypt", () => {

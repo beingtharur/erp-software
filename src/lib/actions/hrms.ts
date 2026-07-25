@@ -15,6 +15,15 @@ export async function decideLeaveRequest(
 ) {
   await requireRole(["ADMIN", "HR"]);
   const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const existing = await prisma.leaveRequest.findFirst({
+    where: { id: leaveId, employee: { organizationId } },
+  });
+  if (!existing) {
+    throw new Error("Leave request not found");
+  }
+
   const leave = await prisma.leaveRequest.update({
     where: { id: leaveId },
     data: { status: decision, decidedOn: new Date(), decidedBy: user.employee?.name ?? "HR" },
@@ -31,8 +40,12 @@ export async function decideLeaveRequest(
 
 export async function processPayroll(payrollId: string) {
   await requireRole(["ADMIN", "HR"]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
 
-  const record = await prisma.payrollRecord.findUnique({ where: { id: payrollId } });
+  const record = await prisma.payrollRecord.findFirst({
+    where: { id: payrollId, employee: { organizationId } },
+  });
   if (!record) {
     throw new Error("Payroll record not found");
   }
@@ -67,11 +80,71 @@ export async function processPayroll(payrollId: string) {
   revalidatePath("/hrms");
 }
 
+export async function generatePayroll(month: number, year: number) {
+  await requireRole(["ADMIN", "HR"]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  if (!Number.isInteger(month) || month < 1 || month > 12 || !Number.isInteger(year)) {
+    throw new Error("Invalid month or year.");
+  }
+
+  const employees = await prisma.employee.findMany({
+    where: { organizationId, status: "ACTIVE" },
+    select: { id: true },
+  });
+
+  let created = 0;
+  let skippedExisting = 0;
+  let skippedNoHistory = 0;
+
+  for (const emp of employees) {
+    const existing = await prisma.payrollRecord.findUnique({
+      where: { employeeId_month_year: { employeeId: emp.id, month, year } },
+    });
+    if (existing) {
+      skippedExisting++;
+      continue;
+    }
+
+    // New months inherit basic/allowances from the employee's most recent prior
+    // record — there's no canonical "base salary" field on Employee itself.
+    const template = await prisma.payrollRecord.findFirst({
+      where: { employeeId: emp.id },
+      orderBy: [{ year: "desc" }, { month: "desc" }],
+    });
+    if (!template) {
+      skippedNoHistory++;
+      continue;
+    }
+
+    await prisma.payrollRecord.create({
+      data: {
+        employeeId: emp.id,
+        month,
+        year,
+        basicSalary: template.basicSalary,
+        allowances: template.allowances,
+        deductions: 0,
+        netPay: template.basicSalary + template.allowances,
+        status: "PENDING",
+      },
+    });
+    created++;
+  }
+
+  revalidatePath("/hrms/payroll");
+  revalidatePath("/hrms");
+  return { created, skippedExisting, skippedNoHistory };
+}
+
 export async function createEmployee(
   _prevState: FormActionState,
   formData: FormData
 ): Promise<FormActionState> {
   await requireRole(["ADMIN", "HR"]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
 
   const name = String(formData.get("name") ?? "").trim();
   const role = String(formData.get("role") ?? "");
@@ -90,7 +163,7 @@ export async function createEmployee(
     return { error: "An employee with this email already exists." };
   }
 
-  const count = await prisma.employee.count();
+  const count = await prisma.employee.count({ where: { organizationId } });
   const employeeCode = `EOS-${String(count + 1).padStart(3, "0")}`;
 
   await prisma.employee.create({
@@ -104,6 +177,7 @@ export async function createEmployee(
       dateOfJoining: new Date(dateOfJoining),
       baseLocation,
       avatarSeed: employeeCode,
+      organizationId,
     },
   });
 
@@ -120,6 +194,7 @@ export async function uploadEmployeeDocument(
 ): Promise<FormActionState> {
   await requireRole(["ADMIN", "HR"]);
   const uploader = await getCurrentUser();
+  const organizationId = uploader.organizationId!;
   if (!uploader.employeeId) {
     return { error: "No employee record linked to this account." };
   }
@@ -133,6 +208,11 @@ export async function uploadEmployeeDocument(
   }
   if (file.size > MAX_DOCUMENT_SIZE) {
     return { error: "File is too large (max 10MB)." };
+  }
+
+  const employee = await prisma.employee.findFirst({ where: { id: employeeId, organizationId } });
+  if (!employee) {
+    return { error: "Employee not found." };
   }
 
   const { url, storageKey } = await saveFile(file, `employees/${employeeId}`);
@@ -155,7 +235,17 @@ export async function uploadEmployeeDocument(
 
 export async function deleteEmployeeDocument(documentId: string) {
   await requireRole(["ADMIN", "HR"]);
-  const doc = await prisma.employeeDocument.delete({ where: { id: documentId } });
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const doc = await prisma.employeeDocument.findFirst({
+    where: { id: documentId, employee: { organizationId } },
+  });
+  if (!doc) {
+    throw new Error("Document not found");
+  }
+
+  await prisma.employeeDocument.delete({ where: { id: documentId } });
   await deleteFile(doc.storageKey);
   revalidatePath(`/hrms/employees/${doc.employeeId}`);
 }

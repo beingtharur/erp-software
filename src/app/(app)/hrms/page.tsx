@@ -1,4 +1,5 @@
 import { getHrmsOverview } from "@/lib/queries/hrms";
+import { getCurrentUser } from "@/lib/dal";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -8,7 +9,8 @@ import { formatDate, initials, titleCase } from "@/lib/format";
 import { Users, UserCheck, Plane, CalendarOff, Wallet } from "lucide-react";
 
 export default async function HrmsOverviewPage() {
-  const data = await getHrmsOverview();
+  const user = await getCurrentUser();
+  const data = await getHrmsOverview(user.organizationId!);
 
   const attendanceMap = Object.fromEntries(
     data.attendanceToday.map((a) => [a.status, a._count])

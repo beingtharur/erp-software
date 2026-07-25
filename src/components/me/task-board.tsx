@@ -4,19 +4,13 @@ import { useTransition } from "react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { updateTaskStatus, deleteTask } from "@/lib/actions/me";
 import { formatDate } from "@/lib/format";
 import { ArrowRight, ArrowLeft, Trash2 } from "lucide-react";
+import { TaskDetailSheet, type TaskDetail } from "@/components/me/task-detail-sheet";
 
 type TaskStatus = "TODO" | "IN_PROGRESS" | "DONE";
-
-type TaskItem = {
-  id: string;
-  title: string;
-  description: string | null;
-  status: TaskStatus;
-  dueDate: Date | string | null;
-};
 
 const columns: { status: TaskStatus; title: string }[] = [
   { status: "TODO", title: "To Do" },
@@ -24,7 +18,7 @@ const columns: { status: TaskStatus; title: string }[] = [
   { status: "DONE", title: "Done" },
 ];
 
-function TaskCard({ task }: { task: TaskItem }) {
+function TaskCard({ task }: { task: TaskDetail }) {
   const [isPending, startTransition] = useTransition();
 
   function move(status: TaskStatus) {
@@ -49,10 +43,28 @@ function TaskCard({ task }: { task: TaskItem }) {
 
   return (
     <div className="rounded-lg border bg-card p-3 text-sm">
-      <p className="font-medium">{task.title}</p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="font-medium">{task.title}</p>
+        <TaskDetailSheet task={task} viewerRole="assignee" />
+      </div>
+      {task.assignedBy && (
+        <p className="mt-0.5 text-xs text-muted-foreground">Assigned by {task.assignedBy.name}</p>
+      )}
       {task.description && (
         <p className="mt-1 text-xs text-muted-foreground">{task.description}</p>
       )}
+      <div className="mt-1.5 flex flex-wrap gap-1">
+        {task.priority !== "MEDIUM" && (
+          <Badge variant="outline" className="text-[10px] font-normal">
+            {task.priority === "HIGH" ? "High" : "Low"}
+          </Badge>
+        )}
+        {task.isBlocked && (
+          <Badge variant="destructive" className="text-[10px] font-normal">
+            Blocked
+          </Badge>
+        )}
+      </div>
       {task.dueDate && (
         <p className="mt-1 text-xs text-muted-foreground">Due {formatDate(task.dueDate)}</p>
       )}
@@ -96,7 +108,7 @@ function TaskCard({ task }: { task: TaskItem }) {
   );
 }
 
-export function TaskBoard({ tasks }: { tasks: TaskItem[] }) {
+export function TaskBoard({ tasks }: { tasks: TaskDetail[] }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       {columns.map((col) => {

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getTickets, getClientOptions, getAmcContractOptions, getAssignableEmployees } from "@/lib/queries/crm";
+import { getCurrentUser } from "@/lib/dal";
 import {
   Table,
   TableBody,
@@ -21,11 +22,13 @@ const priorityVariant: Record<string, "default" | "secondary" | "destructive" | 
 };
 
 export default async function HelpdeskPage() {
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
   const [tickets, clients, amcContracts, employees] = await Promise.all([
-    getTickets(),
-    getClientOptions(),
-    getAmcContractOptions(),
-    getAssignableEmployees(),
+    getTickets(organizationId),
+    getClientOptions(organizationId),
+    getAmcContractOptions(organizationId),
+    getAssignableEmployees(organizationId),
   ]);
 
   return (

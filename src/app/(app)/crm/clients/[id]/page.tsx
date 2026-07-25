@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getClientDetail } from "@/lib/queries/crm";
+import { getCurrentUser } from "@/lib/dal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -13,7 +14,8 @@ export default async function ClientDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const client = await getClientDetail(id);
+  const user = await getCurrentUser();
+  const client = await getClientDetail(id, user.organizationId!);
 
   if (!client) notFound();
 

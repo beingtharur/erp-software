@@ -1,4 +1,5 @@
 import { getLeaveRequests } from "@/lib/queries/hrms";
+import { getCurrentUser } from "@/lib/dal";
 import {
   Table,
   TableBody,
@@ -18,7 +19,8 @@ const statusVariant: Record<string, "default" | "secondary" | "destructive"> = {
 };
 
 export default async function LeavePage() {
-  const requests = await getLeaveRequests();
+  const user = await getCurrentUser();
+  const requests = await getLeaveRequests(user.organizationId!);
 
   return (
     <div className="rounded-lg border">

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireRole } from "@/lib/dal";
+import { requireRole, getCurrentUser } from "@/lib/dal";
 import { SiteHeader } from "@/components/layout/site-header";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { PipelineChart } from "@/components/dashboard/pipeline-chart";
@@ -23,7 +23,8 @@ import {
 
 export default async function OverviewPage() {
   await requireRole(["ADMIN"]);
-  const data = await getDashboardData();
+  const user = await getCurrentUser();
+  const data = await getDashboardData(user.organizationId!);
 
   return (
     <>

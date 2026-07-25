@@ -38,6 +38,10 @@ function jitter(coord: number, meters = 1500) {
 
 async function main() {
   console.log("Clearing existing data...");
+  await prisma.payment.deleteMany();
+  await prisma.subscriptionModule.deleteMany();
+  await prisma.subscription.deleteMany();
+  await prisma.userModuleAccess.deleteMany();
   await prisma.notification.deleteMany();
   await prisma.locationPing.deleteMany();
   await prisma.visitLog.deleteMany();
@@ -65,6 +69,53 @@ async function main() {
   await prisma.personalTask.deleteMany();
   await prisma.user.deleteMany();
   await prisma.employee.deleteMany();
+  await prisma.organization.deleteMany();
+
+  // ---------- Organization ----------
+  // This app is multi-tenant: every root record (User, Employee, Client, Vendor,
+  // GeofenceZone) belongs to one Organization. Everything else is scoped
+  // transitively through those (e.g. LeaveRequest via employee.organizationId).
+  console.log("Seeding organization...");
+
+  const org = await prisma.organization.create({
+    data: { name: "EOS Techno", slug: "eos-techno" },
+  });
+
+  const MODULES = ["crm", "hrms", "vendors", "field", "finance"] as const;
+  const roleModules: Record<AccessRole, string[]> = {
+    ADMIN: ["crm", "hrms", "vendors", "field", "finance"],
+    SALES: ["crm"],
+    FIELD: ["field"],
+    HR: ["hrms"],
+    PROCUREMENT: ["vendors"],
+    FINANCE: ["finance"],
+  };
+
+  await prisma.subscription.create({
+    data: {
+      organizationId: org.id,
+      status: "ACTIVE",
+      trialStartedAt: daysAgo(30),
+      trialEndsAt: daysAgo(25),
+      currentPeriodStart: new Date(),
+      currentPeriodEnd: daysFromNow(365),
+      licencedUsers: 50,
+      modules: { create: MODULES.map((module) => ({ module })) },
+    },
+  });
+
+  // Platform operator — reviews payments across every organization, so it
+  // deliberately belongs to none.
+  const platformHash = hashPassword("demo123");
+  await prisma.user.create({
+    data: {
+      email: "platform-admin@eostechno.internal",
+      passwordHash: platformHash.hash,
+      passwordSalt: platformHash.salt,
+      accessRole: "ADMIN",
+      isSuperAdmin: true,
+    },
+  });
 
   // ---------- Employees ----------
   console.log("Seeding employees...");
@@ -125,6 +176,7 @@ async function main() {
         dateOfJoining: daysAgo(randInt(120, 1800)),
         baseLocation: e.location,
         avatarSeed: e.code,
+        organizationId: org.id,
         reportingToId: i < 3 ? null : employees["EOS-001"]?.id ?? null,
       },
     });
@@ -146,14 +198,18 @@ async function main() {
   ];
 
   for (const l of loginSeed) {
-    await prisma.user.create({
+    const user = await prisma.user.create({
       data: {
         email: l.email,
         passwordHash: demoHash,
         passwordSalt: demoSalt,
         accessRole: l.role,
         employeeId: employees[l.code].id,
+        organizationId: org.id,
       },
+    });
+    await prisma.userModuleAccess.createMany({
+      data: roleModules[l.role].map((module) => ({ userId: user.id, module })),
     });
   }
 
@@ -205,6 +261,7 @@ async function main() {
         contactPhone: `+91 8${randInt(100000000, 999999999)}`,
         logoSeed: c.name,
         status: c.status,
+        organizationId: org.id,
       },
     });
     clients[c.name] = client;
@@ -217,13 +274,20 @@ async function main() {
           latitude: c.lat,
           longitude: c.lng,
           radiusMeters: randInt(300, 600),
+          organizationId: org.id,
         },
       });
     }
   }
 
   await prisma.geofenceZone.create({
-    data: { name: "EOS Techno HQ — Vadodara", latitude: 22.3072, longitude: 73.1812, radiusMeters: 250 },
+    data: {
+      name: "EOS Techno HQ — Vadodara",
+      latitude: 22.3072,
+      longitude: 73.1812,
+      radiusMeters: 250,
+      organizationId: org.id,
+    },
   });
 
   const geofences = await prisma.geofenceZone.findMany();
@@ -427,6 +491,7 @@ async function main() {
         city: v.city,
         rating: Number((3.4 + Math.random() * 1.6).toFixed(1)),
         status: "Active",
+        organizationId: org.id,
       },
     });
     vendors.push(vendor);
@@ -673,6 +738,75 @@ async function main() {
       },
     });
   }
+
+  // ---------- Second organization ----------
+  // Minimal second tenant, seeded purely so cross-org data isolation can be
+  // verified live (log in as this org, confirm EOS Techno's data is invisible).
+  console.log("Seeding second organization for isolation testing...");
+
+  const secondOrg = await prisma.organization.create({
+    data: { name: "Vasant Industrial Supplies", slug: "vasant-industrial" },
+  });
+
+  const secondEmployee = await prisma.employee.create({
+    data: {
+      employeeCode: "VIS-001",
+      name: "Kiran Deshpande",
+      role: "ADMIN",
+      department: "Leadership",
+      email: "kiran.deshpande@vasantindustrial.com",
+      phone: "+91 9800000001",
+      dateOfJoining: daysAgo(10),
+      baseLocation: "Nashik, MH",
+      avatarSeed: "VIS-001",
+      organizationId: secondOrg.id,
+    },
+  });
+
+  const secondUserHash = hashPassword("demo123");
+  const secondUser = await prisma.user.create({
+    data: {
+      email: "kiran.deshpande@vasantindustrial.com",
+      passwordHash: secondUserHash.hash,
+      passwordSalt: secondUserHash.salt,
+      accessRole: "ADMIN",
+      employeeId: secondEmployee.id,
+      organizationId: secondOrg.id,
+    },
+  });
+  await prisma.userModuleAccess.createMany({
+    data: MODULES.map((module) => ({ userId: secondUser.id, module })),
+  });
+
+  await prisma.client.create({
+    data: {
+      name: "Deccan Pharma Labs",
+      industry: "PHARMACEUTICALS",
+      tier: "Gold",
+      city: "Nashik",
+      state: "Maharashtra",
+      contactName: "Rohan Patil",
+      contactTitle: "Plant Head",
+      contactEmail: "rohan.patil@deccanpharma.example",
+      contactPhone: "+91 9800000099",
+      logoSeed: "deccan-pharma",
+      organizationId: secondOrg.id,
+    },
+  });
+
+  await prisma.subscription.create({
+    data: {
+      organizationId: secondOrg.id,
+      status: "TRIAL",
+      trialStartedAt: new Date(),
+      trialEndsAt: daysFromNow(5),
+      licencedUsers: 5,
+    },
+  });
+
+  console.log(
+    `Second org "${secondOrg.name}" ready: login ${secondUser.email} / demo123, 5-day trial, 1 client.`
+  );
 
   console.log("Seed complete.");
 }

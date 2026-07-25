@@ -6,7 +6,7 @@ function startOfToday() {
   return d;
 }
 
-export async function getHrmsOverview() {
+export async function getHrmsOverview(organizationId: string) {
   const today = startOfToday();
   const now = new Date();
 
@@ -19,20 +19,29 @@ export async function getHrmsOverview() {
     recentLeaveRequests,
     departmentCounts,
   ] = await Promise.all([
-    prisma.employee.count({ where: { status: "ACTIVE" } }),
-    prisma.attendance.groupBy({ by: ["status"], where: { date: today }, _count: true }),
-    prisma.leaveRequest.count({ where: { status: "PENDING" } }),
-    prisma.attendance.count({ where: { date: today, status: "ON_LEAVE" } }),
+    prisma.employee.count({ where: { status: "ACTIVE", organizationId } }),
+    prisma.attendance.groupBy({
+      by: ["status"],
+      where: { date: today, employee: { organizationId } },
+      _count: true,
+    }),
+    prisma.leaveRequest.count({ where: { status: "PENDING", employee: { organizationId } } }),
+    prisma.attendance.count({ where: { date: today, status: "ON_LEAVE", employee: { organizationId } } }),
     prisma.payrollRecord.count({
-      where: { status: "PENDING", month: now.getMonth() + 1, year: now.getFullYear() },
+      where: {
+        status: "PENDING",
+        month: now.getMonth() + 1,
+        year: now.getFullYear(),
+        employee: { organizationId },
+      },
     }),
     prisma.leaveRequest.findMany({
-      where: { status: "PENDING" },
+      where: { status: "PENDING", employee: { organizationId } },
       orderBy: { appliedOn: "desc" },
       take: 6,
       include: { employee: true },
     }),
-    prisma.employee.groupBy({ by: ["department"], _count: true, where: { status: "ACTIVE" } }),
+    prisma.employee.groupBy({ by: ["department"], _count: true, where: { status: "ACTIVE", organizationId } }),
   ]);
 
   return {
@@ -46,8 +55,9 @@ export async function getHrmsOverview() {
   };
 }
 
-export async function getEmployees() {
+export async function getEmployees(organizationId: string) {
   return prisma.employee.findMany({
+    where: { organizationId },
     orderBy: { name: "asc" },
     include: {
       _count: { select: { timesheets: true, leaveRequests: true } },
@@ -55,9 +65,9 @@ export async function getEmployees() {
   });
 }
 
-export async function getEmployeeDetail(id: string) {
-  return prisma.employee.findUnique({
-    where: { id },
+export async function getEmployeeDetail(id: string, organizationId: string) {
+  return prisma.employee.findFirst({
+    where: { id, organizationId },
     include: {
       attendances: { orderBy: { date: "desc" }, take: 21 },
       leaveRequests: { orderBy: { appliedOn: "desc" }, take: 10 },
@@ -69,9 +79,9 @@ export async function getEmployeeDetail(id: string) {
   });
 }
 
-export async function getOrgChart() {
+export async function getOrgChart(organizationId: string) {
   return prisma.employee.findMany({
-    where: { status: "ACTIVE" },
+    where: { status: "ACTIVE", organizationId },
     orderBy: { name: "asc" },
     select: {
       id: true,
@@ -83,31 +93,34 @@ export async function getOrgChart() {
   });
 }
 
-export async function getAttendanceToday() {
+export async function getAttendanceToday(organizationId: string) {
   const today = startOfToday();
   return prisma.attendance.findMany({
-    where: { date: today },
+    where: { date: today, employee: { organizationId } },
     include: { employee: true },
     orderBy: { employee: { name: "asc" } },
   });
 }
 
-export async function getLeaveRequests() {
+export async function getLeaveRequests(organizationId: string) {
   return prisma.leaveRequest.findMany({
+    where: { employee: { organizationId } },
     orderBy: { appliedOn: "desc" },
     include: { employee: true },
   });
 }
 
-export async function getPayrollRecords() {
+export async function getPayrollRecords(organizationId: string) {
   return prisma.payrollRecord.findMany({
+    where: { employee: { organizationId } },
     orderBy: [{ year: "desc" }, { month: "desc" }],
     include: { employee: true },
   });
 }
 
-export async function getTimesheets() {
+export async function getTimesheets(organizationId: string) {
   return prisma.timesheet.findMany({
+    where: { employee: { organizationId } },
     orderBy: { date: "desc" },
     take: 100,
     include: { employee: true, project: { include: { client: true } } },

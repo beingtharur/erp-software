@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getQuotations, getClientOptions } from "@/lib/queries/crm";
+import { getCurrentUser } from "@/lib/dal";
 import {
   Table,
   TableBody,
@@ -13,7 +14,12 @@ import { QuotationStatusMenu } from "@/components/crm/quotation-status-menu";
 import { NewQuotationSheet } from "@/components/crm/new-quotation-sheet";
 
 export default async function QuotationsPage() {
-  const [quotations, clients] = await Promise.all([getQuotations(), getClientOptions()]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+  const [quotations, clients] = await Promise.all([
+    getQuotations(organizationId),
+    getClientOptions(organizationId),
+  ]);
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4">

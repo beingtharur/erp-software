@@ -24,6 +24,7 @@ export async function createLead(
 ): Promise<FormActionState> {
   await requireRole(["ADMIN", "SALES"]);
   const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
 
   const title = String(formData.get("title") ?? "").trim();
   const clientId = String(formData.get("clientId") ?? "");
@@ -40,6 +41,11 @@ export async function createLead(
   }
   if (!Number.isFinite(value) || value <= 0) {
     return { error: "Enter a valid deal value." };
+  }
+
+  const client = await prisma.client.findFirst({ where: { id: clientId, organizationId } });
+  if (!client) {
+    return { error: "Client not found." };
   }
 
   await prisma.lead.create({
@@ -65,6 +71,14 @@ export async function updateLeadStage(leadId: string, stage: LeadStage) {
   if (!VALID_STAGES.includes(stage)) {
     throw new Error("Invalid stage");
   }
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const existing = await prisma.lead.findFirst({ where: { id: leadId, client: { organizationId } } });
+  if (!existing) {
+    throw new Error("Lead not found");
+  }
+
   const lead = await prisma.lead.update({
     where: { id: leadId },
     data: {
@@ -75,6 +89,7 @@ export async function updateLeadStage(leadId: string, stage: LeadStage) {
   if (stage === "WON" || stage === "LOST") {
     await notifyRole(
       "ADMIN",
+      organizationId,
       `Lead "${lead.title}" (${formatINR(lead.value)}) marked ${stage === "WON" ? "Won" : "Lost"}.`,
       "/crm"
     );
@@ -88,6 +103,8 @@ export async function createQuotation(
   formData: FormData
 ): Promise<FormActionState> {
   await requireRole(["ADMIN", "SALES"]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
 
   const clientId = String(formData.get("clientId") ?? "");
   const validUntil = String(formData.get("validUntil") ?? "");
@@ -97,6 +114,11 @@ export async function createQuotation(
 
   if (!clientId || !validUntil) {
     return { error: "Please select a client and a valid-until date." };
+  }
+
+  const client = await prisma.client.findFirst({ where: { id: clientId, organizationId } });
+  if (!client) {
+    return { error: "Client not found." };
   }
 
   const lineItems = descriptions
@@ -120,7 +142,7 @@ export async function createQuotation(
   }
 
   const amount = lineItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-  const count = await prisma.quotation.count();
+  const count = await prisma.quotation.count({ where: { client: { organizationId } } });
   const quoteNumber = `QT-${1001 + count}`;
 
   await prisma.quotation.create({
@@ -150,10 +172,16 @@ export async function updateQuotationStatus(
   quotationId: string,
   status: "DRAFT" | "SENT" | "UNDER_REVIEW" | "APPROVED" | "REJECTED"
 ) {
-  await prisma.quotation.update({
-    where: { id: quotationId },
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const result = await prisma.quotation.updateMany({
+    where: { id: quotationId, client: { organizationId } },
     data: { status },
   });
+  if (result.count === 0) {
+    throw new Error("Quotation not found");
+  }
   revalidatePath("/crm/quotations");
   revalidatePath("/");
 }
@@ -162,10 +190,16 @@ export async function updateSiteVisitStatus(
   visitId: string,
   status: "SCHEDULED" | "COMPLETED" | "CANCELLED"
 ) {
-  await prisma.siteVisit.update({
-    where: { id: visitId },
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const result = await prisma.siteVisit.updateMany({
+    where: { id: visitId, client: { organizationId } },
     data: { status },
   });
+  if (result.count === 0) {
+    throw new Error("Site visit not found");
+  }
   revalidatePath("/crm/site-visits");
   revalidatePath("/");
 }
@@ -175,6 +209,8 @@ export async function createMilestone(
   formData: FormData
 ): Promise<FormActionState> {
   await requireRole(["ADMIN", "SALES"]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
 
   const projectId = String(formData.get("projectId") ?? "");
   const title = String(formData.get("title") ?? "").trim();
@@ -182,6 +218,11 @@ export async function createMilestone(
 
   if (!projectId || !title || !dueDate) {
     return { error: "Please fill in all fields." };
+  }
+
+  const project = await prisma.project.findFirst({ where: { id: projectId, client: { organizationId } } });
+  if (!project) {
+    return { error: "Project not found." };
   }
 
   const count = await prisma.milestone.count({ where: { projectId } });
@@ -197,6 +238,16 @@ export async function updateMilestoneStatus(
   milestoneId: string,
   status: "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "DELAYED"
 ) {
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const existing = await prisma.milestone.findFirst({
+    where: { id: milestoneId, project: { client: { organizationId } } },
+  });
+  if (!existing) {
+    throw new Error("Milestone not found");
+  }
+
   const milestone = await prisma.milestone.update({
     where: { id: milestoneId },
     data: { status },
@@ -209,6 +260,8 @@ export async function createProjectTask(
   formData: FormData
 ): Promise<FormActionState> {
   await requireRole(["ADMIN", "SALES"]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
 
   const projectId = String(formData.get("projectId") ?? "");
   const milestoneId = String(formData.get("milestoneId") ?? "");
@@ -218,6 +271,11 @@ export async function createProjectTask(
 
   if (!projectId || !title) {
     return { error: "Give the task a title." };
+  }
+
+  const project = await prisma.project.findFirst({ where: { id: projectId, client: { organizationId } } });
+  if (!project) {
+    return { error: "Project not found." };
   }
 
   await prisma.projectTask.create({
@@ -238,6 +296,16 @@ export async function updateProjectTaskStatus(
   taskId: string,
   status: "TODO" | "IN_PROGRESS" | "DONE"
 ) {
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const existing = await prisma.projectTask.findFirst({
+    where: { id: taskId, project: { client: { organizationId } } },
+  });
+  if (!existing) {
+    throw new Error("Task not found");
+  }
+
   const task = await prisma.projectTask.update({
     where: { id: taskId },
     data: { status },
@@ -266,6 +334,8 @@ export async function createTicket(
   formData: FormData
 ): Promise<FormActionState> {
   await requireRole(["ADMIN", "SALES"]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
 
   const clientId = String(formData.get("clientId") ?? "");
   const amcContractId = String(formData.get("amcContractId") ?? "");
@@ -278,7 +348,12 @@ export async function createTicket(
     return { error: "Please fill in all required fields." };
   }
 
-  const count = await prisma.supportTicket.count();
+  const client = await prisma.client.findFirst({ where: { id: clientId, organizationId } });
+  if (!client) {
+    return { error: "Client not found." };
+  }
+
+  const count = await prisma.supportTicket.count({ where: { client: { organizationId } } });
   const ticketNumber = `TKT-${1001 + count}`;
 
   await prisma.supportTicket.create({
@@ -296,6 +371,7 @@ export async function createTicket(
   if (priority === "CRITICAL") {
     await notifyRole(
       "ADMIN",
+      organizationId,
       `Critical ticket ${ticketNumber} raised: "${subject}".`,
       "/crm/helpdesk"
     );
@@ -310,23 +386,35 @@ export async function updateTicketStatus(
   ticketId: string,
   status: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED"
 ) {
-  await prisma.supportTicket.update({
-    where: { id: ticketId },
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const result = await prisma.supportTicket.updateMany({
+    where: { id: ticketId, client: { organizationId } },
     data: {
       status,
       resolvedAt: status === "RESOLVED" || status === "CLOSED" ? new Date() : null,
     },
   });
+  if (result.count === 0) {
+    throw new Error("Ticket not found");
+  }
   revalidatePath("/crm/helpdesk");
   revalidatePath(`/crm/helpdesk/${ticketId}`);
   revalidatePath("/");
 }
 
 export async function assignTicket(ticketId: string, assigneeId: string) {
-  await prisma.supportTicket.update({
-    where: { id: ticketId },
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const result = await prisma.supportTicket.updateMany({
+    where: { id: ticketId, client: { organizationId } },
     data: { assigneeId: assigneeId || null },
   });
+  if (result.count === 0) {
+    throw new Error("Ticket not found");
+  }
   revalidatePath("/crm/helpdesk");
   revalidatePath(`/crm/helpdesk/${ticketId}`);
 }
@@ -335,6 +423,9 @@ export async function resolveTicket(
   _prevState: FormActionState,
   formData: FormData
 ): Promise<FormActionState> {
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
   const ticketId = String(formData.get("ticketId") ?? "");
   const resolutionNotes = String(formData.get("resolutionNotes") ?? "").trim();
 
@@ -342,10 +433,13 @@ export async function resolveTicket(
     return { error: "Add resolution notes before resolving." };
   }
 
-  await prisma.supportTicket.update({
-    where: { id: ticketId },
+  const result = await prisma.supportTicket.updateMany({
+    where: { id: ticketId, client: { organizationId } },
     data: { status: "RESOLVED", resolutionNotes, resolvedAt: new Date() },
   });
+  if (result.count === 0) {
+    return { error: "Ticket not found." };
+  }
 
   revalidatePath("/crm/helpdesk");
   revalidatePath(`/crm/helpdesk/${ticketId}`);

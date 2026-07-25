@@ -1,4 +1,5 @@
 import { getAttendanceToday } from "@/lib/queries/hrms";
+import { getCurrentUser } from "@/lib/dal";
 import {
   Table,
   TableBody,
@@ -19,7 +20,8 @@ const statusVariant: Record<string, "default" | "secondary" | "destructive" | "o
 };
 
 export default async function AttendancePage() {
-  const attendance = await getAttendanceToday();
+  const user = await getCurrentUser();
+  const attendance = await getAttendanceToday(user.organizationId!);
 
   return (
     <div className="flex flex-col gap-4">

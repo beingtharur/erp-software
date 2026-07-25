@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getTicketDetail, getAssignableEmployees } from "@/lib/queries/crm";
+import { getCurrentUser } from "@/lib/dal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TicketStatusMenu } from "@/components/crm/ticket-status-menu";
@@ -22,7 +23,12 @@ export default async function TicketDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [ticket, employees] = await Promise.all([getTicketDetail(id), getAssignableEmployees()]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+  const [ticket, employees] = await Promise.all([
+    getTicketDetail(id, organizationId),
+    getAssignableEmployees(organizationId),
+  ]);
 
   if (!ticket) notFound();
 

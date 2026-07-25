@@ -1,4 +1,5 @@
 import { getVisitLogs } from "@/lib/queries/field";
+import { getCurrentUser } from "@/lib/dal";
 import {
   Table,
   TableBody,
@@ -11,7 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/format";
 
 export default async function VisitHistoryPage() {
-  const visits = await getVisitLogs();
+  const user = await getCurrentUser();
+  const visits = await getVisitLogs(user.organizationId!);
 
   return (
     <div className="rounded-lg border">

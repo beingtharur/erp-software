@@ -13,6 +13,7 @@ export async function createExpenseClaim(
   formData: FormData
 ): Promise<FormActionState> {
   const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
   if (!user.employeeId) {
     return { error: "No employee record linked to this account." };
   }
@@ -29,7 +30,7 @@ export async function createExpenseClaim(
     return { error: "Enter a valid amount." };
   }
 
-  const count = await prisma.expenseClaim.count();
+  const count = await prisma.expenseClaim.count({ where: { employee: { organizationId } } });
   const claimNumber = `EXP-${2001 + count}`;
 
   const claim = await prisma.expenseClaim.create({
@@ -52,6 +53,7 @@ export async function createExpenseClaim(
 
   await notifyRole(
     "FINANCE",
+    organizationId,
     `New expense claim ${claimNumber} (${formatINR(amount)}) is awaiting your approval.`,
     "/approvals"
   );
@@ -63,7 +65,12 @@ export async function createExpenseClaim(
 
 export async function markExpenseClaimReimbursed(claimId: string) {
   await requireRole(["ADMIN", "FINANCE"]);
-  const claim = await prisma.expenseClaim.findUnique({ where: { id: claimId } });
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const claim = await prisma.expenseClaim.findFirst({
+    where: { id: claimId, employee: { organizationId } },
+  });
   if (!claim || claim.status !== "APPROVED") {
     throw new Error("Only approved claims can be marked reimbursed");
   }
@@ -81,6 +88,7 @@ export async function createBudget(
 ): Promise<FormActionState> {
   await requireRole(["ADMIN", "FINANCE"]);
   const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
   if (!user.employeeId) {
     return { error: "No employee record linked to this account." };
   }
@@ -121,6 +129,7 @@ export async function createBudget(
 
   await notifyRole(
     "ADMIN",
+    organizationId,
     `New budget proposal for ${department} (${formatINR(proposedAmount)}) is awaiting your approval.`,
     "/approvals"
   );

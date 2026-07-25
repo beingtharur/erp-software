@@ -1,4 +1,5 @@
 import { getExpenseClaims } from "@/lib/queries/finance";
+import { getCurrentUser } from "@/lib/dal";
 import {
   Table,
   TableBody,
@@ -10,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatINR, titleCase } from "@/lib/format";
 import { ReimburseClaimButton } from "@/components/finance/reimburse-claim-button";
+import { DecideClaimButtons } from "@/components/finance/decide-claim-buttons";
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   PENDING: "secondary",
@@ -19,7 +21,8 @@ const statusVariant: Record<string, "default" | "secondary" | "destructive" | "o
 };
 
 export default async function ExpenseClaimsPage() {
-  const claims = await getExpenseClaims();
+  const user = await getCurrentUser();
+  const claims = await getExpenseClaims(user.organizationId!);
 
   return (
     <div className="rounded-lg border">
@@ -56,6 +59,8 @@ export default async function ExpenseClaimsPage() {
                   <div className="flex justify-end">
                     <ReimburseClaimButton claimId={c.id} />
                   </div>
+                ) : c.status === "PENDING" && c.approvalId ? (
+                  <DecideClaimButtons approvalId={c.approvalId} />
                 ) : (
                   <Badge variant={statusVariant[c.status]} className="font-normal">
                     {titleCase(c.status)}

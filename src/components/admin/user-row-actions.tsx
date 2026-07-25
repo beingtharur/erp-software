@@ -33,7 +33,7 @@ export function UserRoleSelect({ userId, accessRole }: { userId: string; accessR
   return (
     <Select value={accessRole} onValueChange={onChange} disabled={isPending}>
       <SelectTrigger size="sm" className="w-40">
-        <SelectValue />
+        <SelectValue>{(value: unknown) => roleLabel[value as AccessRole] ?? String(value)}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {(Object.keys(roleLabel) as AccessRole[]).map((role) => (

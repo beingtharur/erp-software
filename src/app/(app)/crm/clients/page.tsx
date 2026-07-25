@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getClients } from "@/lib/queries/crm";
+import { getCurrentUser } from "@/lib/dal";
 import {
   Table,
   TableBody,
@@ -12,7 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { titleCase } from "@/lib/format";
 
 export default async function ClientsPage() {
-  const clients = await getClients();
+  const user = await getCurrentUser();
+  const clients = await getClients(user.organizationId!);
 
   return (
     <div className="rounded-lg border">

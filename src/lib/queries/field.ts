@@ -1,16 +1,20 @@
 import { prisma } from "@/lib/db";
 
-export async function getFieldMapData() {
+export async function getFieldMapData(organizationId: string) {
   const [geofences, fieldEmployees, activeVisits] = await Promise.all([
-    prisma.geofenceZone.findMany({ include: { client: true } }),
+    prisma.geofenceZone.findMany({ where: { organizationId }, include: { client: true } }),
     prisma.employee.findMany({
-      where: { role: { in: ["INSTALLATION_CREW", "TECHNICIAN", "SALES_REP"] }, status: "ACTIVE" },
+      where: {
+        role: { in: ["INSTALLATION_CREW", "TECHNICIAN", "SALES_REP"] },
+        status: "ACTIVE",
+        organizationId,
+      },
       include: {
         locationPings: { orderBy: { timestamp: "desc" }, take: 1, include: { geofence: true } },
       },
     }),
     prisma.visitLog.findMany({
-      where: { status: "CHECKED_IN" },
+      where: { status: "CHECKED_IN", employee: { organizationId } },
       include: { geofence: { include: { client: true } } },
     }),
   ]);
@@ -59,22 +63,25 @@ export async function getMyActiveVisit(employeeId: string) {
   });
 }
 
-export async function getGeofenceOptions() {
+export async function getGeofenceOptions(organizationId: string) {
   return prisma.geofenceZone.findMany({
+    where: { organizationId },
     orderBy: { name: "asc" },
     select: { id: true, name: true },
   });
 }
 
-export async function getVisitLogs() {
+export async function getVisitLogs(organizationId: string) {
   return prisma.visitLog.findMany({
+    where: { employee: { organizationId } },
     orderBy: { checkInTime: "desc" },
     include: { employee: true, geofence: { include: { client: true } } },
   });
 }
 
-export async function getGeofences() {
+export async function getGeofences(organizationId: string) {
   return prisma.geofenceZone.findMany({
+    where: { organizationId },
     include: { client: true, project: true, _count: { select: { visitLogs: true } } },
     orderBy: { name: "asc" },
   });

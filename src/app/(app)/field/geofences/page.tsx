@@ -1,4 +1,5 @@
 import { getGeofences } from "@/lib/queries/field";
+import { getCurrentUser } from "@/lib/dal";
 import {
   Table,
   TableBody,
@@ -9,7 +10,8 @@ import {
 } from "@/components/ui/table";
 
 export default async function GeofencesPage() {
-  const geofences = await getGeofences();
+  const user = await getCurrentUser();
+  const geofences = await getGeofences(user.organizationId!);
 
   return (
     <div className="rounded-lg border">

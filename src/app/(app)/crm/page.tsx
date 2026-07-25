@@ -5,10 +5,11 @@ import { NewLeadSheet } from "@/components/crm/new-lead-sheet";
 
 export default async function PipelinePage() {
   const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
   const [leads, clients, salesReps] = await Promise.all([
-    getPipelineLeads(),
-    getClientOptions(),
-    getSalesReps(),
+    getPipelineLeads(organizationId),
+    getClientOptions(organizationId),
+    getSalesReps(organizationId),
   ]);
 
   return (

@@ -9,7 +9,7 @@ import { ClipboardCheck } from "lucide-react";
 
 export default async function ApprovalsPage() {
   const user = await getCurrentUser();
-  const approvals = await getPendingApprovals(user.accessRole);
+  const approvals = await getPendingApprovals(user.accessRole, user.organizationId!);
 
   return (
     <>

@@ -12,8 +12,11 @@ export async function notifyEmployee(employeeId: string, message: string, href?:
   await notifyUser(user.id, message, href);
 }
 
-export async function notifyRole(role: AccessRole, message: string, href?: string) {
-  const users = await prisma.user.findMany({ where: { accessRole: role }, select: { id: true } });
+export async function notifyRole(role: AccessRole, organizationId: string, message: string, href?: string) {
+  const users = await prisma.user.findMany({
+    where: { accessRole: role, organizationId },
+    select: { id: true },
+  });
   if (users.length === 0) return;
   await prisma.notification.createMany({
     data: users.map((u) => ({ userId: u.id, message, href })),

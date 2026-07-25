@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getQuotationDetail } from "@/lib/queries/crm";
+import { getCurrentUser } from "@/lib/dal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { QuotationStatusMenu } from "@/components/crm/quotation-status-menu";
@@ -13,7 +14,8 @@ export default async function QuotationDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const quotation = await getQuotationDetail(id);
+  const user = await getCurrentUser();
+  const quotation = await getQuotationDetail(id, user.organizationId!);
 
   if (!quotation) notFound();
 

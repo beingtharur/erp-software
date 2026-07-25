@@ -139,7 +139,7 @@ export function AppSidebar({
                     {initials(userName)}
                   </AvatarFallback>
                 </Avatar>
-                <div className="grid flex-1 text-left text-sm leading-tight">
+                <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
                   <span className="truncate font-medium">{userName}</span>
                   <span className="truncate text-xs text-sidebar-foreground/60">
                     {roleLabel[accessRole]}
@@ -166,7 +166,7 @@ export function AppSidebar({
             </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>
-        <div className="px-2 py-1.5 text-xs text-sidebar-foreground/50">
+        <div className="truncate px-2 py-1.5 text-xs text-sidebar-foreground/50 group-data-[collapsible=icon]:hidden">
           Demo build · sample data
         </div>
       </SidebarFooter>

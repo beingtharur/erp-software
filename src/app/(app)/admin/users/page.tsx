@@ -18,7 +18,11 @@ export default async function AdminUsersPage() {
   await requireRole(["ADMIN"]);
   const currentUser = await getCurrentUser();
 
-  const [users, eligibleEmployees] = await Promise.all([getUsers(), getEmployeesWithoutLogin()]);
+  const organizationId = currentUser.organizationId!;
+  const [users, eligibleEmployees] = await Promise.all([
+    getUsers(organizationId),
+    getEmployeesWithoutLogin(organizationId),
+  ]);
 
   return (
     <>

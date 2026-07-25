@@ -33,8 +33,20 @@ type EligibleEmployee = {
   email: string;
 };
 
+const EMPLOYEE_ROLE_LABEL: Record<string, string> = {
+  INSTALLATION_CREW: "Installation Crew",
+  TECHNICIAN: "Technician",
+  SALES_REP: "Sales Rep",
+  ENGINEER: "Engineer",
+  PROJECT_MANAGER: "Project Manager",
+  ADMIN: "Admin",
+  HR: "HR",
+  FINANCE: "Finance",
+};
+
 export function NewUserSheet({ employees }: { employees: EligibleEmployee[] }) {
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"existing" | "new">(employees.length > 0 ? "existing" : "new");
   const [state, formAction, pending] = useActionState(createUserForEmployee, undefined);
 
   useEffect(() => {
@@ -46,7 +58,7 @@ export function NewUserSheet({ employees }: { employees: EligibleEmployee[] }) {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger render={<Button size="sm" disabled={employees.length === 0} />}>
+      <SheetTrigger render={<Button size="sm" />}>
         <Plus />
         New user
       </SheetTrigger>
@@ -54,34 +66,126 @@ export function NewUserSheet({ employees }: { employees: EligibleEmployee[] }) {
         <SheetHeader>
           <SheetTitle>Grant portal access</SheetTitle>
           <SheetDescription>
-            Create a login for an existing employee who doesn&apos;t have one yet.
+            Give an existing employee a login, or add a brand-new person and grant them access in
+            one step.
           </SheetDescription>
         </SheetHeader>
         <form action={formAction} className="flex flex-1 flex-col gap-4 overflow-y-auto px-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="employeeId">Employee</Label>
-            <Select name="employeeId" required>
-              <SelectTrigger id="employeeId" className="w-full">
-                <SelectValue placeholder="Select employee" />
-              </SelectTrigger>
-              <SelectContent>
-                {employees.map((emp) => (
-                  <SelectItem key={emp.id} value={emp.id}>
-                    {emp.name} · {emp.employeeCode}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Login email is the employee&apos;s existing email address.
-            </p>
+          <input type="hidden" name="mode" value={mode} />
+
+          <div className="flex gap-1.5 rounded-lg border p-1">
+            <Button
+              type="button"
+              size="sm"
+              variant={mode === "existing" ? "secondary" : "ghost"}
+              className="flex-1"
+              disabled={employees.length === 0}
+              onClick={() => setMode("existing")}
+            >
+              Existing employee
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={mode === "new" ? "secondary" : "ghost"}
+              className="flex-1"
+              onClick={() => setMode("new")}
+            >
+              New person
+            </Button>
           </div>
+
+          {mode === "existing" ? (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="employeeId">Employee</Label>
+              <Select name="employeeId" required={mode === "existing"}>
+                <SelectTrigger id="employeeId" className="w-full">
+                  <SelectValue placeholder="Select employee">
+                    {(value: unknown) => {
+                      const emp = employees.find((e) => e.id === value);
+                      return emp ? `${emp.name} · ${emp.employeeCode}` : "Select employee";
+                    }}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.length === 0 ? (
+                    <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                      Every employee already has portal access.
+                    </p>
+                  ) : (
+                    employees.map((emp) => (
+                      <SelectItem key={emp.id} value={emp.id}>
+                        {emp.name} · {emp.employeeCode}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Login email is the employee&apos;s existing email address.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="name">Full name</Label>
+                <Input id="name" name="name" placeholder="Person's name" required={mode === "new"} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="role">Employee role</Label>
+                  <Select name="role" required={mode === "new"} defaultValue="ENGINEER">
+                    <SelectTrigger id="role" className="w-full">
+                      <SelectValue>
+                        {(value: unknown) => EMPLOYEE_ROLE_LABEL[value as string] ?? "Engineer"}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(EMPLOYEE_ROLE_LABEL).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="department">Department</Label>
+                  <Input id="department" name="department" placeholder="e.g. Projects" required={mode === "new"} />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" name="email" type="email" placeholder="name@eostechno.com" required={mode === "new"} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input id="phone" name="phone" placeholder="+91 90000 00000" required={mode === "new"} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="dateOfJoining">Date of joining</Label>
+                  <Input id="dateOfJoining" name="dateOfJoining" type="date" required={mode === "new"} />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="baseLocation">Base location</Label>
+                <Input id="baseLocation" name="baseLocation" placeholder="e.g. Vadodara, GJ" required={mode === "new"} />
+              </div>
+            </>
+          )}
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="accessRole">Access role</Label>
             <Select name="accessRole" required>
               <SelectTrigger id="accessRole" className="w-full">
-                <SelectValue placeholder="Select role" />
+                <SelectValue placeholder="Select role">
+                  {(value: unknown) => roleLabel[value as keyof typeof roleLabel] ?? "Select role"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {(Object.keys(roleLabel) as (keyof typeof roleLabel)[]).map((role) => (

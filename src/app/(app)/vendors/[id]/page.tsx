@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getVendorDetail } from "@/lib/queries/vendor";
+import { getCurrentUser } from "@/lib/dal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -27,7 +28,8 @@ export default async function VendorDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const vendor = await getVendorDetail(id);
+  const user = await getCurrentUser();
+  const vendor = await getVendorDetail(id, user.organizationId!);
 
   if (!vendor) notFound();
 

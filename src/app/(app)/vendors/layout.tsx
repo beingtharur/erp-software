@@ -1,6 +1,6 @@
 import { SiteHeader } from "@/components/layout/site-header";
 import { SectionTabs } from "@/components/layout/section-tabs";
-import { requireRole } from "@/lib/dal";
+import { requireRole, requireModuleAccess } from "@/lib/dal";
 
 const tabs = [
   { title: "Vendors", href: "/vendors" },
@@ -10,6 +10,7 @@ const tabs = [
 
 export default async function VendorsLayout({ children }: { children: React.ReactNode }) {
   await requireRole(["ADMIN", "PROCUREMENT"]);
+  await requireModuleAccess("vendors");
 
   return (
     <>

@@ -1,6 +1,6 @@
 import { SiteHeader } from "@/components/layout/site-header";
 import { SectionTabs } from "@/components/layout/section-tabs";
-import { requireRole } from "@/lib/dal";
+import { requireRole, requireModuleAccess } from "@/lib/dal";
 
 const tabs = [
   { title: "Overview", href: "/hrms" },
@@ -14,6 +14,7 @@ const tabs = [
 
 export default async function HrmsLayout({ children }: { children: React.ReactNode }) {
   await requireRole(["ADMIN", "HR"]);
+  await requireModuleAccess("hrms");
 
   return (
     <>

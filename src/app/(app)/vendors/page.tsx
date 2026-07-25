@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getVendors } from "@/lib/queries/vendor";
+import { getCurrentUser } from "@/lib/dal";
 import {
   Table,
   TableBody,
@@ -13,7 +14,8 @@ import { NewVendorSheet } from "@/components/vendors/new-vendor-sheet";
 import { VendorRatingControl } from "@/components/vendors/vendor-rating-control";
 
 export default async function VendorsPage() {
-  const vendors = await getVendors();
+  const user = await getCurrentUser();
+  const vendors = await getVendors(user.organizationId!);
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4">

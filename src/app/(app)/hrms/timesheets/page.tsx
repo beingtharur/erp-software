@@ -1,4 +1,5 @@
 import { getTimesheets } from "@/lib/queries/hrms";
+import { getCurrentUser } from "@/lib/dal";
 import {
   Table,
   TableBody,
@@ -11,7 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/format";
 
 export default async function TimesheetsPage() {
-  const timesheets = await getTimesheets();
+  const user = await getCurrentUser();
+  const timesheets = await getTimesheets(user.organizationId!);
 
   return (
     <div className="rounded-lg border">

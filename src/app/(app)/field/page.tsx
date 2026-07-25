@@ -9,13 +9,14 @@ import { formatDateTime, initials, titleCase } from "@/lib/format";
 
 export default async function LiveMapPage() {
   const user = await getCurrentUser();
-  const { reps, geofences } = await getFieldMapData();
+  const organizationId = user.organizationId!;
+  const { reps, geofences } = await getFieldMapData(organizationId);
   const checkedIn = reps.filter((r) => r.isCheckedIn);
   const offSite = reps.filter((r) => !r.isCheckedIn);
 
   const showMyStatus = user.accessRole === "FIELD" && user.employeeId;
   const [activeVisit, geofenceOptions] = showMyStatus
-    ? await Promise.all([getMyActiveVisit(user.employeeId!), getGeofenceOptions()])
+    ? await Promise.all([getMyActiveVisit(user.employeeId!), getGeofenceOptions(organizationId)])
     : [null, []];
 
   return (

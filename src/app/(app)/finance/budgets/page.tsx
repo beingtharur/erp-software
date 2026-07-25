@@ -1,4 +1,5 @@
 import { getBudgets } from "@/lib/queries/finance";
+import { getCurrentUser } from "@/lib/dal";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -12,7 +13,8 @@ const statusVariant: Record<string, "default" | "secondary" | "destructive"> = {
 };
 
 export default async function BudgetsPage() {
-  const budgets = await getBudgets();
+  const user = await getCurrentUser();
+  const budgets = await getBudgets(user.organizationId!);
 
   return (
     <div className="flex flex-col gap-4">

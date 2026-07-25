@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getProjectDetail, getAssignableEmployees } from "@/lib/queries/crm";
+import { getCurrentUser } from "@/lib/dal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -24,7 +25,12 @@ export default async function ProjectDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [project, employees] = await Promise.all([getProjectDetail(id), getAssignableEmployees()]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+  const [project, employees] = await Promise.all([
+    getProjectDetail(id, organizationId),
+    getAssignableEmployees(organizationId),
+  ]);
 
   if (!project) notFound();
 

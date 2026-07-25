@@ -1,4 +1,5 @@
 import { getPurchaseOrders, getVendorOptions } from "@/lib/queries/vendor";
+import { getCurrentUser } from "@/lib/dal";
 import {
   Table,
   TableBody,
@@ -20,7 +21,12 @@ const statusVariant: Record<string, "default" | "secondary" | "destructive" | "o
 };
 
 export default async function PurchaseOrdersPage() {
-  const [orders, vendors] = await Promise.all([getPurchaseOrders(), getVendorOptions()]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+  const [orders, vendors] = await Promise.all([
+    getPurchaseOrders(organizationId),
+    getVendorOptions(organizationId),
+  ]);
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4">

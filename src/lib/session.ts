@@ -12,6 +12,9 @@ export type SessionPayload = {
   userId: string;
   accessRole: "ADMIN" | "SALES" | "FIELD" | "HR" | "PROCUREMENT" | "FINANCE";
   name: string;
+  // null only for the platform super-admin, who belongs to no single organization.
+  organizationId: string | null;
+  isSuperAdmin: boolean;
 };
 
 const COOKIE_NAME = "eos_session";
