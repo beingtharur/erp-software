@@ -4,8 +4,8 @@ import "server-only";
 // components. Falls back to placeholder demo values so local/dev works without
 // a .env; production deployments should always set these explicitly.
 export const PAYMENT_CONFIG = {
-  upiId: process.env.PAYMENT_UPI_ID ?? "eostechno@upi",
-  accountHolderName: process.env.PAYMENT_ACCOUNT_NAME ?? "EOS Techno Private Limited",
+  upiId: process.env.PAYMENT_UPI_ID ?? "existdigitally@upi",
+  accountHolderName: process.env.PAYMENT_ACCOUNT_NAME ?? "Exist Digitally",
   bankName: process.env.PAYMENT_BANK_NAME ?? "HDFC Bank",
   accountNumber: process.env.PAYMENT_ACCOUNT_NUMBER ?? "50100123456789",
   ifsc: process.env.PAYMENT_IFSC ?? "HDFC0000123",

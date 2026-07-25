@@ -69,7 +69,7 @@ export function LoginForm() {
               <Boxes className="size-4.5" />
             </div>
             <div>
-              <p className="text-sm font-semibold leading-none">EOS Techno</p>
+              <p className="text-sm font-semibold leading-none">Exist Digitally</p>
               <p className="text-xs text-muted-foreground">Ops Platform</p>
             </div>
           </div>
@@ -124,6 +124,16 @@ export function LoginForm() {
           </form>
         </CardContent>
       </Card>
+
+      <div className="lg:col-span-2">
+        <p className="text-center text-xs text-muted-foreground">
+          Need help? Contact{" "}
+          <a href="mailto:digitallyexist@gmail.com" className="underline">
+            digitallyexist@gmail.com
+          </a>{" "}
+          · +91 96256 33868
+        </p>
+      </div>
 
       <div className="flex flex-col gap-2.5">
         <p className="px-1 text-xs font-medium text-muted-foreground">

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireRole, getCurrentUser } from "@/lib/dal";
+import { requireRole, getCurrentUser, getCurrentOrganization } from "@/lib/dal";
 import { SiteHeader } from "@/components/layout/site-header";
 import { KpiCard } from "@/components/dashboard/kpi-card";
 import { PipelineChart } from "@/components/dashboard/pipeline-chart";
@@ -24,13 +24,16 @@ import {
 export default async function OverviewPage() {
   await requireRole(["ADMIN"]);
   const user = await getCurrentUser();
-  const data = await getDashboardData(user.organizationId!);
+  const [data, organization] = await Promise.all([
+    getDashboardData(user.organizationId!),
+    getCurrentOrganization(),
+  ]);
 
   return (
     <>
       <SiteHeader
         title="Overview"
-        description="EOS Techno operations at a glance — CRM, HRMS, vendors & field"
+        description={`${organization.name} operations at a glance — CRM, HRMS, vendors & field`}
       />
       <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">

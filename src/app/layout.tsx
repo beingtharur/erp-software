@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EOS Techno — Ops Platform",
-  description: "CRM, HRMS, Vendor Management & Field Tracking demo for EOS Techno.",
+  title: "Exist Digitally — Ops Platform",
+  description: "CRM, HRMS, Vendor Management & Field Tracking ERP by Exist Digitally.",
 };
 
 export default function RootLayout({

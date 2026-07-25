@@ -1,10 +1,10 @@
-# EOS Techno Ops Platform — Project Context
+# Exist Digitally Ops Platform — Project Context
 
 This file is written for a future Claude session (or any engineer) picking this repo up cold. Read this before making changes — it captures architecture, conventions, and non-obvious gotchas that aren't visible from skimming the code.
 
 ## What this is
 
-A **single Next.js application** — there is no separate backend. It's a multi-tenant SaaS ops platform (CRM, HRMS, Vendor Management, GPS field tracking, Finance, Helpdesk, task management) originally built as a single-tenant demo for a fictional company "EOS Techno," then retrofitted into a real multi-tenant subscription product with a 5-day trial, manual UPI/bank payment collection, and admin-verified activation.
+A **single Next.js application** — there is no separate backend. It's a multi-tenant SaaS ops platform (CRM, HRMS, Vendor Management, GPS field tracking, Finance, Helpdesk, task management) owned and operated by **Exist Digitally** (support: digitallyexist@gmail.com, +91 96256 33868). It was originally built as a single-tenant demo for a fictional customer company "EOS Techno," then retrofitted into a real multi-tenant subscription product with a 5-day trial, manual UPI/bank payment collection, and admin-verified activation. **"EOS Techno" is now just the seeded demo tenant** (one example customer organization used to exercise multi-tenancy) — it is not the platform's own brand; the platform itself is Exist Digitally.
 
 Everything — UI, business logic, and data access — lives in one Next.js App Router codebase. "Frontend" and "backend" are not separate deployables; see the Deployment section for what that means in practice.
 

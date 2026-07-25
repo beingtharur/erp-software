@@ -1,6 +1,8 @@
-# EOS Techno Ops Platform
+# Exist Digitally — Ops Platform
 
-A multi-tenant SaaS ops platform (CRM, HRMS, Vendor Management, GPS field tracking, Finance, Helpdesk, task management) built with Next.js, TypeScript, and SQLite. Organizations get a 5-day free trial, then a monthly subscription (user-licensed + module-based) activated via manually-verified UPI/bank payment.
+A multi-tenant SaaS ops platform (CRM, HRMS, Vendor Management, GPS field tracking, Finance, Helpdesk, task management) built by [Exist Digitally](mailto:digitallyexist@gmail.com) with Next.js, TypeScript, and SQLite. Organizations get a 5-day free trial, then a monthly subscription (user-licensed + module-based) activated via manually-verified UPI/bank payment.
+
+The demo data seeds a sample customer organization named "EOS Techno" to exercise multi-tenancy — that's a fictional *tenant* of this platform, not the platform's own name.
 
 **Before making changes, read [`context.md`](./context.md)** — it covers the full architecture, data model, multi-tenancy design, subscription system, and several non-obvious gotchas (env vars, storage persistence, this fork's Next.js deviations) that aren't visible from skimming the code.
 

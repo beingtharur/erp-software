@@ -137,7 +137,7 @@ export async function createUserForEmployee(
     throw err;
   }
 
-  await notifyUser(newUser.id, "Welcome to the EOS Techno Ops Platform — your portal access is ready.", "/me");
+  await notifyUser(newUser.id, "Welcome to the Exist Digitally Ops Platform — your portal access is ready.", "/me");
 
   revalidatePath("/admin/users");
   revalidatePath("/hrms/employees");

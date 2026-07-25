@@ -51,7 +51,7 @@ export function AppSidebar({
                 <Boxes className="size-4" />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">EOS Techno</span>
+                <span className="truncate font-semibold">Exist Digitally</span>
                 <span className="truncate text-xs text-sidebar-foreground/60">
                   Ops Platform
                 </span>

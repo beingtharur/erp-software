@@ -23,7 +23,7 @@ export function RegisterForm() {
             <Boxes className="size-4.5" />
           </div>
           <div>
-            <p className="text-sm font-semibold leading-none">EOS Techno</p>
+            <p className="text-sm font-semibold leading-none">Exist Digitally</p>
             <p className="text-xs text-muted-foreground">Ops Platform</p>
           </div>
         </div>
@@ -81,6 +81,14 @@ export function RegisterForm() {
             Already have an account? <Link href="/login" className="underline">Sign in</Link>
           </p>
         </form>
+
+        <p className="text-center text-xs text-muted-foreground">
+          Need help? Contact{" "}
+          <a href="mailto:digitallyexist@gmail.com" className="underline">
+            digitallyexist@gmail.com
+          </a>{" "}
+          · +91 96256 33868
+        </p>
       </CardContent>
     </Card>
   );
