@@ -20,6 +20,16 @@ export type SessionPayload = {
 const COOKIE_NAME = "eos_session";
 const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 
+// Defaults to NODE_ENV === "production" (unchanged behavior), but a `Secure`
+// cookie is only ever sent by the browser over an actual HTTPS connection —
+// on a production deployment still served over plain HTTP (no TLS/domain
+// yet), that silently drops the cookie on every request after login. Set
+// COOKIE_SECURE=false explicitly until real HTTPS is in front of the app.
+const secureCookie =
+  process.env.COOKIE_SECURE !== undefined
+    ? process.env.COOKIE_SECURE === "true"
+    : process.env.NODE_ENV === "production";
+
 export async function encrypt(payload: SessionPayload) {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: "HS256" })
@@ -44,7 +54,7 @@ export async function createSession(payload: SessionPayload) {
   const cookieStore = await cookies();
   cookieStore.set(COOKIE_NAME, session, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: secureCookie,
     expires: expiresAt,
     sameSite: "lax",
     path: "/",
