@@ -1,11 +1,6 @@
-import path from "node:path";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import { PrismaClient, EmployeeRole, Industry, AccessRole } from "../src/generated/prisma/client";
+import { EmployeeRole, Industry, AccessRole } from "../src/generated/prisma/client";
 import { hashPassword } from "../src/lib/password";
-
-const prisma = new PrismaClient({
-  adapter: new PrismaBetterSqlite3({ url: `file:${path.join(__dirname, "dev.db")}` }),
-});
+import { prisma } from "../src/lib/db";
 
 // ---------- helpers ----------
 
