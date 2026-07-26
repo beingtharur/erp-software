@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { TrialBanner } from "@/components/layout/trial-banner";
+import { CompleteProfileBanner } from "@/components/layout/complete-profile-banner";
 import { getCurrentUser, requireActiveAccess } from "@/lib/dal";
 
 export default async function AppShellLayout({
@@ -25,6 +26,7 @@ export default async function AppShellLayout({
       />
       <SidebarInset>
         <TrialBanner access={access} />
+        {!user.employeeId && <CompleteProfileBanner />}
         {children}
       </SidebarInset>
     </SidebarProvider>

@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NewUserSheet } from "@/components/admin/new-user-sheet";
+import { EditUserSheet } from "@/components/admin/edit-user-sheet";
 import { UserRoleSelect, RevokeAccessButton } from "@/components/admin/user-row-actions";
 import { formatDate, initials, titleCase } from "@/lib/format";
 
@@ -79,7 +80,17 @@ export default async function AdminUsersPage() {
                     {formatDate(user.createdAt)}
                   </TableCell>
                   <TableCell className="text-right">
-                    {user.id !== currentUser.id && <RevokeAccessButton userId={user.id} />}
+                    <div className="flex justify-end gap-1.5">
+                      <EditUserSheet
+                        user={{
+                          id: user.id,
+                          email: user.email,
+                          accessRole: user.accessRole,
+                          employeeName: user.employee?.name ?? null,
+                        }}
+                      />
+                      {user.id !== currentUser.id && <RevokeAccessButton userId={user.id} />}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

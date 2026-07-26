@@ -26,6 +26,13 @@ import {
 import { applyLeave } from "@/lib/actions/me";
 import { Plus } from "lucide-react";
 
+const LEAVE_TYPE_LABEL: Record<string, string> = {
+  CASUAL: "Casual",
+  SICK: "Sick",
+  EARNED: "Earned",
+  UNPAID: "Unpaid",
+};
+
 export function ApplyLeaveSheet() {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(applyLeave, undefined);
@@ -53,7 +60,9 @@ export function ApplyLeaveSheet() {
             <Label htmlFor="type">Leave type</Label>
             <Select name="type" required defaultValue="CASUAL">
               <SelectTrigger id="type" className="w-full">
-                <SelectValue placeholder="Select type" />
+                <SelectValue placeholder="Select type">
+                  {(value: unknown) => LEAVE_TYPE_LABEL[value as string] ?? "Casual"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="CASUAL">Casual</SelectItem>

@@ -25,6 +25,14 @@ import {
 import { uploadEmployeeDocument } from "@/lib/actions/hrms";
 import { Upload } from "lucide-react";
 
+const DOCUMENT_TYPE_LABEL: Record<string, string> = {
+  ID_PROOF: "ID Proof",
+  OFFER_LETTER: "Offer Letter",
+  CONTRACT: "Contract",
+  CERTIFICATE: "Certificate",
+  OTHER: "Other",
+};
+
 export function UploadDocumentSheet({ employeeId }: { employeeId: string }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(uploadEmployeeDocument, undefined);
@@ -54,7 +62,9 @@ export function UploadDocumentSheet({ employeeId }: { employeeId: string }) {
             <Label htmlFor="type">Document type</Label>
             <Select name="type" required defaultValue="OTHER">
               <SelectTrigger id="type" className="w-full">
-                <SelectValue placeholder="Select type" />
+                <SelectValue placeholder="Select type">
+                  {(value: unknown) => DOCUMENT_TYPE_LABEL[value as string] ?? "Other"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ID_PROOF">ID Proof</SelectItem>

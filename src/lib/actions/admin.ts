@@ -146,6 +146,61 @@ export async function createUserForEmployee(
   return { success: true };
 }
 
+export async function updateUser(
+  _prevState: FormActionState,
+  formData: FormData
+): Promise<FormActionState> {
+  await requireRole(["ADMIN"]);
+  const admin = await getCurrentUser();
+  const organizationId = admin.organizationId!;
+
+  const userId = String(formData.get("userId") ?? "");
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const accessRole = String(formData.get("accessRole") ?? "");
+  const newPassword = String(formData.get("newPassword") ?? "");
+
+  if (!userId || !email || !accessRole) {
+    return { error: "Please fill in all fields." };
+  }
+  if (newPassword && newPassword.length < 6) {
+    return { error: "Password must be at least 6 characters." };
+  }
+
+  const target = await prisma.user.findFirst({ where: { id: userId, organizationId } });
+  if (!target) {
+    return { error: "User not found." };
+  }
+
+  const emailOwner = await prisma.user.findUnique({ where: { email } });
+  if (emailOwner && emailOwner.id !== userId) {
+    return { error: "Another user already has this email." };
+  }
+
+  let passwordFields: { passwordHash: string; passwordSalt: string } | undefined;
+  if (newPassword) {
+    const { hash, salt } = hashPassword(newPassword);
+    passwordFields = { passwordHash: hash, passwordSalt: salt };
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { email, accessRole: accessRole as AccessRole, ...passwordFields },
+  });
+
+  // Module access is additive on top of role defaults — grant the new role's
+  // defaults without touching any extra modules an admin granted beyond that.
+  for (const moduleKey of roleSectionAccess[accessRole as AccessRole]) {
+    await prisma.userModuleAccess.upsert({
+      where: { userId_module: { userId, module: moduleKey } },
+      create: { userId, module: moduleKey },
+      update: {},
+    });
+  }
+
+  revalidatePath("/admin/users");
+  return { success: true };
+}
+
 export async function updateUserRole(userId: string, accessRole: AccessRole) {
   await requireRole(["ADMIN"]);
   const admin = await getCurrentUser();

@@ -3,11 +3,22 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireRole, getCurrentUser } from "@/lib/dal";
-import { notifyEmployee } from "@/lib/notify";
+import { notifyEmployee, notifyUser } from "@/lib/notify";
 import { titleCase } from "@/lib/format";
 import { calculateNetPay } from "@/lib/payroll";
 import { saveFile, deleteFile } from "@/lib/storage";
+import { hashPassword } from "@/lib/password";
+import { roleSectionAccess } from "@/lib/nav";
 import type { FormActionState } from "@/lib/actions/crm";
+import type { AccessRole } from "@/generated/prisma/client";
+
+const DEFAULT_TEMP_PASSWORD = "demo123";
+
+class LicenceLimitError extends Error {
+  constructor(public licencedUsers: number) {
+    super("Licence limit reached");
+  }
+}
 
 export async function decideLeaveRequest(
   leaveId: string,
@@ -153,14 +164,28 @@ export async function createEmployee(
   const phone = String(formData.get("phone") ?? "").trim();
   const dateOfJoining = String(formData.get("dateOfJoining") ?? "");
   const baseLocation = String(formData.get("baseLocation") ?? "").trim();
+  const accessRole = String(formData.get("accessRole") ?? "");
 
-  if (!name || !role || !department || !email || !phone || !dateOfJoining || !baseLocation) {
+  if (
+    !name ||
+    !role ||
+    !department ||
+    !email ||
+    !phone ||
+    !dateOfJoining ||
+    !baseLocation ||
+    !accessRole
+  ) {
     return { error: "Please fill in all fields." };
   }
 
-  const existing = await prisma.employee.findUnique({ where: { email } });
-  if (existing) {
+  const existingEmployee = await prisma.employee.findUnique({ where: { email } });
+  if (existingEmployee) {
     return { error: "An employee with this email already exists." };
+  }
+  const existingUser = await prisma.user.findUnique({ where: { email } });
+  if (existingUser) {
+    return { error: "A login already exists with this email." };
   }
 
   // employeeCode is globally unique (not scoped per organization), so the
@@ -168,14 +193,121 @@ export async function createEmployee(
   // with another organization's employees the moment both start from zero.
   const count = await prisma.employee.count();
   const employeeCode = `EOS-${String(count + 1).padStart(3, "0")}`;
+  const { hash, salt } = hashPassword(DEFAULT_TEMP_PASSWORD);
 
-  await prisma.employee.create({
+  try {
+    await prisma.$transaction(async (tx) => {
+      const employee = await tx.employee.create({
+        data: {
+          employeeCode,
+          name,
+          role: role as never,
+          department,
+          email,
+          phone,
+          dateOfJoining: new Date(dateOfJoining),
+          baseLocation,
+          avatarSeed: employeeCode,
+          organizationId,
+        },
+      });
+
+      await tx.user.create({
+        data: {
+          email,
+          passwordHash: hash,
+          passwordSalt: salt,
+          accessRole: accessRole as AccessRole,
+          employeeId: employee.id,
+          organizationId,
+          moduleAccess: {
+            create: roleSectionAccess[accessRole as AccessRole].map((module) => ({ module })),
+          },
+        },
+      });
+
+      // Re-check the licence count *after* the insert, inside the same
+      // transaction — see the identical guard in actions/admin.ts::createUserForEmployee.
+      const subscription = await tx.subscription.findUnique({ where: { organizationId } });
+      const licencedUsers = subscription?.licencedUsers ?? 0;
+      const currentUserCount = await tx.user.count({ where: { organizationId } });
+      if (currentUserCount > licencedUsers) {
+        throw new LicenceLimitError(licencedUsers);
+      }
+
+      return employee;
+    });
+  } catch (err) {
+    if (err instanceof LicenceLimitError) {
+      return {
+        error: `Your subscription includes ${err.licencedUsers} user licences. Please purchase additional licences to add more users.`,
+      };
+    }
+    throw err;
+  }
+
+  const newUser = await prisma.user.findUnique({ where: { email } });
+  if (newUser) {
+    await notifyUser(
+      newUser.id,
+      "Welcome to the Exist Digitally Ops Platform — your portal access is ready. Your temporary password is 'demo123'.",
+      "/me"
+    );
+  }
+
+  revalidatePath("/hrms/employees");
+  revalidatePath("/hrms");
+  revalidatePath("/admin/users");
+  return { success: true };
+}
+
+export async function createSelfEmployeeProfile(
+  _prevState: FormActionState,
+  formData: FormData
+): Promise<FormActionState> {
+  const user = await getCurrentUser();
+  if (user.employeeId) {
+    return { error: "You already have an employee profile." };
+  }
+  const organizationId = user.organizationId!;
+
+  const name = String(formData.get("name") ?? "").trim();
+  const role = String(formData.get("role") ?? "");
+  const department = String(formData.get("department") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").trim();
+  const dateOfJoining = String(formData.get("dateOfJoining") ?? "");
+  const baseLocation = String(formData.get("baseLocation") ?? "").trim();
+
+  if (!name || !role || !department || !phone || !dateOfJoining || !baseLocation) {
+    return { error: "Please fill in all fields." };
+  }
+
+  // The user's own email may already exist as an unlinked Employee row (e.g.
+  // HR added them separately before they completed this form) — link that
+  // instead of creating a duplicate.
+  const existingEmployee = await prisma.employee.findUnique({
+    where: { email: user.email },
+    include: { user: true },
+  });
+  if (existingEmployee) {
+    if (existingEmployee.user) {
+      return { error: "An employee record with your email is already linked to a different login." };
+    }
+    await prisma.user.update({ where: { id: user.id }, data: { employeeId: existingEmployee.id } });
+    revalidatePath("/", "layout");
+    return { success: true };
+  }
+
+  const count = await prisma.employee.count();
+  const employeeCode = `EOS-${String(count + 1).padStart(3, "0")}`;
+
+  const employee = await prisma.employee.create({
     data: {
       employeeCode,
       name,
       role: role as never,
       department,
-      email,
+      email: user.email,
       phone,
       dateOfJoining: new Date(dateOfJoining),
       baseLocation,
@@ -184,9 +316,45 @@ export async function createEmployee(
     },
   });
 
+  await prisma.user.update({ where: { id: user.id }, data: { employeeId: employee.id } });
+
+  revalidatePath("/", "layout");
+  return { success: true };
+}
+
+export async function deleteEmployee(employeeId: string) {
+  await requireRole(["ADMIN", "HR"]);
+  const currentUser = await getCurrentUser();
+  const organizationId = currentUser.organizationId!;
+
+  if (currentUser.employeeId === employeeId) {
+    throw new Error("You can't delete your own employee record.");
+  }
+
+  const employee = await prisma.employee.findFirst({ where: { id: employeeId, organizationId } });
+  if (!employee) {
+    throw new Error("Employee not found");
+  }
+
+  try {
+    await prisma.$transaction([
+      // Deleting the login along with the employee is intentional — portal
+      // access shouldn't outlive the employee record it's attributed to.
+      prisma.user.deleteMany({ where: { employeeId } }),
+      prisma.employee.delete({ where: { id: employeeId } }),
+    ]);
+  } catch (err) {
+    if (err instanceof Error && "code" in err && (err as { code?: string }).code === "P2003") {
+      throw new Error(
+        "Cannot delete this employee — they have existing HR or business records (attendance, leave, payroll, tasks, approvals, leads, etc.) linked to their profile."
+      );
+    }
+    throw err;
+  }
+
   revalidatePath("/hrms/employees");
   revalidatePath("/hrms");
-  return { success: true };
+  revalidatePath("/admin/users");
 }
 
 const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024; // 10MB

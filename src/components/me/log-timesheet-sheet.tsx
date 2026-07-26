@@ -57,7 +57,9 @@ export function LogTimesheetSheet({
             <Label htmlFor="projectId">Project</Label>
             <Select name="projectId">
               <SelectTrigger id="projectId" className="w-full">
-                <SelectValue placeholder="Select project (optional)" />
+                <SelectValue placeholder="Select project (optional)">
+                  {(value: unknown) => projects.find((p) => p.id === value)?.name ?? "Select project (optional)"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {projects.map((p) => (

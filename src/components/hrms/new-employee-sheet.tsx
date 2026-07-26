@@ -23,7 +23,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createEmployee } from "@/lib/actions/hrms";
+import { roleLabel } from "@/lib/nav";
 import { Plus } from "lucide-react";
+
+const EMPLOYEE_ROLE_LABEL: Record<string, string> = {
+  INSTALLATION_CREW: "Installation Crew",
+  TECHNICIAN: "Technician",
+  SALES_REP: "Sales Rep",
+  ENGINEER: "Engineer",
+  PROJECT_MANAGER: "Project Manager",
+  ADMIN: "Admin",
+  HR: "HR",
+  FINANCE: "Finance",
+};
 
 export function NewEmployeeSheet() {
   const [open, setOpen] = useState(false);
@@ -58,7 +70,9 @@ export function NewEmployeeSheet() {
               <Label htmlFor="role">Role</Label>
               <Select name="role" required defaultValue="ENGINEER">
                 <SelectTrigger id="role" className="w-full">
-                  <SelectValue placeholder="Role" />
+                  <SelectValue placeholder="Role">
+                    {(value: unknown) => EMPLOYEE_ROLE_LABEL[value as string] ?? "Engineer"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="INSTALLATION_CREW">Installation Crew</SelectItem>
@@ -97,6 +111,28 @@ export function NewEmployeeSheet() {
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="baseLocation">Base location</Label>
             <Input id="baseLocation" name="baseLocation" placeholder="e.g. Vadodara, GJ" required />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="accessRole">Access role</Label>
+            <Select name="accessRole" required>
+              <SelectTrigger id="accessRole" className="w-full">
+                <SelectValue placeholder="Select role">
+                  {(value: unknown) => roleLabel[value as keyof typeof roleLabel] ?? "Select role"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(roleLabel) as (keyof typeof roleLabel)[]).map((role) => (
+                  <SelectItem key={role} value={role}>
+                    {roleLabel[role]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              A portal login is created automatically with temporary password{" "}
+              <span className="font-mono">demo123</span>.
+            </p>
           </div>
 
           {state?.error && <p className="text-sm text-destructive">{state.error}</p>}

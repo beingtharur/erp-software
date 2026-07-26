@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { formatDate, initials, titleCase } from "@/lib/format";
 import { NewEmployeeSheet } from "@/components/hrms/new-employee-sheet";
+import { DeleteEmployeeButton } from "@/components/hrms/employee-row-actions";
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive"> = {
   ACTIVE: "default",
@@ -39,6 +40,7 @@ export default async function EmployeesPage() {
             <TableHead>Location</TableHead>
             <TableHead>Joined</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -63,6 +65,13 @@ export default async function EmployeesPage() {
                 <Badge variant={statusVariant[emp.status]} className="font-normal">
                   {titleCase(emp.status)}
                 </Badge>
+              </TableCell>
+              <TableCell className="text-right">
+                {emp.id !== user.employeeId && (
+                  <div className="flex justify-end">
+                    <DeleteEmployeeButton employeeId={emp.id} employeeName={emp.name} />
+                  </div>
+                )}
               </TableCell>
             </TableRow>
           ))}

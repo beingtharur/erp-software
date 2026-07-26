@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { NewVendorSheet } from "@/components/vendors/new-vendor-sheet";
 import { VendorRatingControl } from "@/components/vendors/vendor-rating-control";
+import { DeleteVendorButton } from "@/components/vendors/vendor-row-actions";
 
 export default async function VendorsPage() {
   const user = await getCurrentUser();
@@ -33,6 +34,7 @@ export default async function VendorsPage() {
               <TableHead>Rating</TableHead>
               <TableHead className="text-right">Purchase Orders</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -52,6 +54,11 @@ export default async function VendorsPage() {
                 <TableCell className="text-right">{v._count.purchaseOrders}</TableCell>
                 <TableCell>
                   <Badge className="font-normal">{v.status}</Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end">
+                    <DeleteVendorButton vendorId={v.id} vendorName={v.name} />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

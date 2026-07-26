@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useCallback, useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,14 +17,18 @@ import { checkIn, checkOut } from "@/lib/actions/field";
 import { formatDateTime } from "@/lib/format";
 import { MapPin, LogOut, LocateFixed } from "lucide-react";
 
-type GeoStatus = "locating" | "ready" | "unavailable" | "denied";
+type GeoStatus = "locating" | "ready" | "unavailable" | "denied" | "timeout" | "insecure";
 
 const geoStatusLabel: Record<GeoStatus, string> = {
   locating: "Getting your location…",
   ready: "Using your device's GPS location",
   unavailable: "Location unavailable — will use the site's approximate location",
-  denied: "Location permission denied — will use the site's approximate location",
+  denied: "Location permission denied — enable it in your browser's site settings, then retry",
+  timeout: "Location timed out — tap retry, ideally with a clearer view of the sky",
+  insecure: "This page isn't loaded securely (HTTPS) — browsers block location on insecure connections",
 };
+
+const RETRYABLE_GEO_STATUSES: GeoStatus[] = ["unavailable", "denied", "timeout"];
 
 type ActiveVisit = {
   id: string;
@@ -47,24 +51,39 @@ export function MyFieldStatus({
   // during SSR, so branching on it here would cause a hydration mismatch.
   const [geoStatus, setGeoStatus] = useState<GeoStatus>("locating");
 
+  const requestLocation = useCallback(() => {
+    // Browsers block the Geolocation API entirely on insecure origins (plain
+    // http:// on anything other than localhost) — this is the #1 cause of
+    // "GPS isn't picking up my location" when the app is opened over the LAN
+    // IP instead of localhost or an https:// deployment.
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      setGeoStatus("insecure");
+      return;
+    }
+    if (!("geolocation" in navigator)) {
+      setGeoStatus("unavailable");
+      return;
+    }
+    setGeoStatus("locating");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setGeoStatus("ready");
+      },
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) setGeoStatus("denied");
+        else if (err.code === err.TIMEOUT) setGeoStatus("timeout");
+        else setGeoStatus("unavailable");
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30_000 }
+    );
+  }, []);
+
   useEffect(() => {
     if (activeVisit) return;
     // Deferred a tick so the "unavailable" setState below isn't synchronous-in-effect.
-    queueMicrotask(() => {
-      if (!("geolocation" in navigator)) {
-        setGeoStatus("unavailable");
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-          setGeoStatus("ready");
-        },
-        (err) => setGeoStatus(err.code === err.PERMISSION_DENIED ? "denied" : "unavailable"),
-        { enableHighAccuracy: true, timeout: 8000 }
-      );
-    });
-  }, [activeVisit]);
+    queueMicrotask(requestLocation);
+  }, [activeVisit, requestLocation]);
 
   if (activeVisit) {
     return (
@@ -122,7 +141,9 @@ export function MyFieldStatus({
             <Label htmlFor="geofenceId">Site</Label>
             <Select name="geofenceId" required>
               <SelectTrigger id="geofenceId" className="w-full">
-                <SelectValue placeholder="Select site" />
+                <SelectValue placeholder="Select site">
+                  {(value: unknown) => geofences.find((g) => g.id === value)?.name ?? "Select site"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {geofences.map((g) => (
@@ -142,8 +163,17 @@ export function MyFieldStatus({
           </Button>
         </form>
         <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <LocateFixed className="size-3.5" />
+          <LocateFixed className="size-3.5 shrink-0" />
           {geoStatusLabel[geoStatus]}
+          {RETRYABLE_GEO_STATUSES.includes(geoStatus) && (
+            <button
+              type="button"
+              onClick={requestLocation}
+              className="shrink-0 underline underline-offset-2 hover:no-underline"
+            >
+              Retry
+            </button>
+          )}
         </p>
         {state?.error && <p className="mt-2 text-sm text-destructive">{state.error}</p>}
       </CardContent>

@@ -11,6 +11,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatINR, titleCase } from "@/lib/format";
 import { NewPurchaseOrderSheet } from "@/components/vendors/new-po-sheet";
+import { EditPurchaseOrderSheet } from "@/components/vendors/edit-po-sheet";
+import { DeletePoButton, ReorderPoButton } from "@/components/vendors/po-row-actions";
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   DRAFT: "outline",
@@ -44,6 +46,7 @@ export default async function PurchaseOrdersPage() {
               <TableHead>Order Date</TableHead>
               <TableHead>Expected Delivery</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -61,6 +64,13 @@ export default async function PurchaseOrdersPage() {
                   <Badge variant={statusVariant[po.status]} className="font-normal">
                     {titleCase(po.status)}
                   </Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-1.5">
+                    <EditPurchaseOrderSheet po={po} vendors={vendors} />
+                    <ReorderPoButton poId={po.id} />
+                    <DeletePoButton poId={po.id} poNumber={po.poNumber} />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

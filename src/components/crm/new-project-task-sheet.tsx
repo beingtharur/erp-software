@@ -70,7 +70,11 @@ export function NewProjectTaskSheet({
             <Label htmlFor="milestoneId">Milestone</Label>
             <Select name="milestoneId" defaultValue={milestoneId}>
               <SelectTrigger id="milestoneId" className="w-full">
-                <SelectValue placeholder="Unassigned to a milestone" />
+                <SelectValue placeholder="Unassigned to a milestone">
+                  {(value: unknown) =>
+                    milestones.find((m) => m.id === value)?.name ?? "Unassigned to a milestone"
+                  }
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {milestones.map((m) => (
@@ -87,7 +91,9 @@ export function NewProjectTaskSheet({
               <Label htmlFor="assigneeId">Assignee</Label>
               <Select name="assigneeId">
                 <SelectTrigger id="assigneeId" className="w-full">
-                  <SelectValue placeholder="Unassigned" />
+                  <SelectValue placeholder="Unassigned">
+                    {(value: unknown) => employees.find((e) => e.id === value)?.name ?? "Unassigned"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {employees.map((e) => (

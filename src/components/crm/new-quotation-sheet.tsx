@@ -86,7 +86,9 @@ export function NewQuotationSheet({ clients }: { clients: { id: string; name: st
               <Label htmlFor="clientId">Client</Label>
               <Select name="clientId" required>
                 <SelectTrigger id="clientId" className="w-full">
-                  <SelectValue placeholder="Select client" />
+                  <SelectValue placeholder="Select client">
+                    {(value: unknown) => clients.find((c) => c.id === value)?.name ?? "Select client"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {clients.map((c) => (

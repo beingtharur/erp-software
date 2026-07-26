@@ -25,6 +25,15 @@ import {
 import { createBudget } from "@/lib/actions/finance";
 import { Plus } from "lucide-react";
 
+const CATEGORY_LABEL: Record<string, string> = {
+  TRAVEL: "Travel",
+  MEALS: "Meals",
+  SUPPLIES: "Supplies",
+  EQUIPMENT: "Equipment",
+  SOFTWARE: "Software",
+  OTHER: "Other",
+};
+
 export function NewBudgetSheet() {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createBudget, undefined);
@@ -58,7 +67,9 @@ export function NewBudgetSheet() {
               <Label htmlFor="category">Category</Label>
               <Select name="category" required defaultValue="TRAVEL">
                 <SelectTrigger id="category" className="w-full">
-                  <SelectValue placeholder="Select category" />
+                  <SelectValue placeholder="Select category">
+                    {(value: unknown) => CATEGORY_LABEL[value as string] ?? "Travel"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="TRAVEL">Travel</SelectItem>

@@ -26,6 +26,21 @@ import {
 import { createLead } from "@/lib/actions/crm";
 import { Plus } from "lucide-react";
 
+const SOURCE_LABEL: Record<string, string> = {
+  RFQ: "RFQ",
+  TENDER: "Tender",
+  REFERRAL: "Referral",
+  WEBSITE: "Website",
+  EXHIBITION: "Exhibition",
+};
+
+const PRODUCT_LINE_LABEL: Record<string, string> = {
+  PROCESS_EQUIPMENT: "Process Equipment",
+  CONTAINMENT_SYSTEMS: "Containment Systems",
+  PIPING_DISTRIBUTION: "Piping Distribution",
+  TURNKEY_PROJECTS: "Turnkey Projects",
+};
+
 export function NewLeadSheet({
   clients,
   salesReps,
@@ -70,7 +85,9 @@ export function NewLeadSheet({
             <Label htmlFor="clientId">Client</Label>
             <Select name="clientId" required>
               <SelectTrigger id="clientId" className="w-full">
-                <SelectValue placeholder="Select client" />
+                <SelectValue placeholder="Select client">
+                  {(value: unknown) => clients.find((c) => c.id === value)?.name ?? "Select client"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {clients.map((c) => (
@@ -87,7 +104,9 @@ export function NewLeadSheet({
               <Label htmlFor="source">Source</Label>
               <Select name="source" required defaultValue="RFQ">
                 <SelectTrigger id="source" className="w-full">
-                  <SelectValue placeholder="Source" />
+                  <SelectValue placeholder="Source">
+                    {(value: unknown) => SOURCE_LABEL[value as string] ?? "RFQ"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="RFQ">RFQ</SelectItem>
@@ -102,7 +121,9 @@ export function NewLeadSheet({
               <Label htmlFor="productLine">Product line</Label>
               <Select name="productLine" required defaultValue="PROCESS_EQUIPMENT">
                 <SelectTrigger id="productLine" className="w-full">
-                  <SelectValue placeholder="Product line" />
+                  <SelectValue placeholder="Product line">
+                    {(value: unknown) => PRODUCT_LINE_LABEL[value as string] ?? "Process Equipment"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="PROCESS_EQUIPMENT">Process Equipment</SelectItem>
@@ -142,7 +163,9 @@ export function NewLeadSheet({
               <Label htmlFor="ownerId">Owner</Label>
               <Select name="ownerId" required defaultValue={currentEmployeeId ?? undefined}>
                 <SelectTrigger id="ownerId" className="w-full">
-                  <SelectValue placeholder="Select owner" />
+                  <SelectValue placeholder="Select owner">
+                    {(value: unknown) => salesReps.find((s) => s.id === value)?.name ?? "Select owner"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {salesReps.map((s) => (
