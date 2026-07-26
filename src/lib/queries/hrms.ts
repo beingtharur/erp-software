@@ -93,12 +93,60 @@ export async function getOrgChart(organizationId: string) {
   });
 }
 
+// A full daily roster, not just the Attendance rows that happen to exist for
+// today: an ACTIVE employee with no Attendance row and no approved leave
+// covering today hasn't checked in at all (12:00 AM–11:59 PM) and would
+// otherwise be silently missing from the list instead of showing as absent.
 export async function getAttendanceToday(organizationId: string) {
   const today = startOfToday();
-  return prisma.attendance.findMany({
-    where: { date: today, employee: { organizationId } },
-    include: { employee: true },
-    orderBy: { employee: { name: "asc" } },
+
+  const [employees, records, approvedLeaveToday] = await Promise.all([
+    prisma.employee.findMany({
+      where: { status: "ACTIVE", organizationId },
+      orderBy: { name: "asc" },
+    }),
+    prisma.attendance.findMany({
+      where: { date: today, employee: { organizationId } },
+    }),
+    prisma.leaveRequest.findMany({
+      where: {
+        status: "APPROVED",
+        startDate: { lte: today },
+        endDate: { gte: today },
+        employee: { organizationId },
+      },
+    }),
+  ]);
+
+  const recordByEmployee = new Map(records.map((r) => [r.employeeId, r]));
+  const leaveByEmployee = new Map(approvedLeaveToday.map((l) => [l.employeeId, l]));
+
+  return employees.map((employee) => {
+    const record = recordByEmployee.get(employee.id);
+    if (record) {
+      return { ...record, employee, leaveType: null };
+    }
+    const leave = leaveByEmployee.get(employee.id);
+    if (leave) {
+      return {
+        id: `leave-${leave.id}`,
+        employee,
+        checkIn: null,
+        checkOut: null,
+        hoursWorked: 0,
+        status: "ON_LEAVE" as const,
+        leaveType: leave.type,
+      };
+    }
+    return {
+      id: `absent-${employee.id}`,
+      employee,
+      checkIn: null,
+      checkOut: null,
+      hoursWorked: 0,
+      status: "ABSENT" as const,
+      leaveType: null,
+    };
   });
 }
 

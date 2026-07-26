@@ -1,54 +1,29 @@
-import { getSiteVisits } from "@/lib/queries/crm";
-import { getCurrentUser } from "@/lib/dal";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { formatDate } from "@/lib/format";
-import { SiteVisitStatusMenu } from "@/components/crm/site-visit-status-menu";
+  getSiteVisits,
+  getClientOptions,
+  getProjectOptionsByClient,
+  getAssignableEmployees,
+} from "@/lib/queries/crm";
+import { getCurrentUser } from "@/lib/dal";
+import { NewSiteVisitSheet } from "@/components/crm/new-site-visit-sheet";
+import { SiteVisitsView } from "@/components/crm/site-visits-view";
 
 export default async function SiteVisitsPage() {
   const user = await getCurrentUser();
-  const visits = await getSiteVisits(user.organizationId!);
+  const organizationId = user.organizationId!;
+  const [visits, clients, projects, employees] = await Promise.all([
+    getSiteVisits(organizationId),
+    getClientOptions(organizationId),
+    getProjectOptionsByClient(organizationId),
+    getAssignableEmployees(organizationId),
+  ]);
 
   return (
-    <div className="rounded-lg border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Client</TableHead>
-            <TableHead>Purpose</TableHead>
-            <TableHead>Project</TableHead>
-            <TableHead>Assigned To</TableHead>
-            <TableHead>Scheduled</TableHead>
-            <TableHead>Follow-up</TableHead>
-            <TableHead>Status</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {visits.map((v) => (
-            <TableRow key={v.id}>
-              <TableCell className="font-medium">{v.client.name}</TableCell>
-              <TableCell className="text-muted-foreground">{v.purpose}</TableCell>
-              <TableCell className="max-w-48 truncate text-muted-foreground">
-                {v.project?.name ?? "—"}
-              </TableCell>
-              <TableCell className="text-muted-foreground">{v.assignedTo.name}</TableCell>
-              <TableCell className="text-muted-foreground">{formatDate(v.scheduledDate)}</TableCell>
-              <TableCell className="text-muted-foreground">
-                {v.followUpDate ? formatDate(v.followUpDate) : "—"}
-              </TableCell>
-              <TableCell>
-                <SiteVisitStatusMenu visitId={v.id} status={v.status} />
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+    <div className="flex min-w-0 flex-1 flex-col gap-4">
+      <div className="flex justify-end">
+        <NewSiteVisitSheet clients={clients} projects={projects} employees={employees} />
+      </div>
+      <SiteVisitsView visits={visits} clients={clients} projects={projects} employees={employees} />
     </div>
   );
 }

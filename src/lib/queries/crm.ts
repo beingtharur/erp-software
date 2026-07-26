@@ -107,7 +107,21 @@ export async function getSiteVisits(organizationId: string) {
   return prisma.siteVisit.findMany({
     where: { client: { organizationId } },
     orderBy: { scheduledDate: "desc" },
-    include: { client: true, assignedTo: true, project: true },
+    include: {
+      client: true,
+      assignedTo: true,
+      project: true,
+      lead: { select: { id: true, title: true } },
+      attachments: true,
+    },
+  });
+}
+
+export async function getProjectOptionsByClient(organizationId: string) {
+  return prisma.project.findMany({
+    where: { client: { organizationId } },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, clientId: true },
   });
 }
 

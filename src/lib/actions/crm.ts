@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireRole, getCurrentUser } from "@/lib/dal";
-import { notifyRole } from "@/lib/notify";
-import { formatINR } from "@/lib/format";
+import { notifyRole, notifyEmployee } from "@/lib/notify";
+import { formatINR, formatDate, titleCase } from "@/lib/format";
+import { saveFile } from "@/lib/storage";
 
 export type FormActionState = { error?: string; success?: boolean } | undefined;
 
@@ -154,6 +155,7 @@ export async function createQuotation(
   const organizationId = user.organizationId!;
 
   const clientId = String(formData.get("clientId") ?? "");
+  const leadId = String(formData.get("leadId") ?? "");
   const validUntil = String(formData.get("validUntil") ?? "");
   const descriptions = formData.getAll("description").map((v) => String(v).trim());
   const quantities = formData.getAll("quantity").map((v) => Number(v));
@@ -166,6 +168,15 @@ export async function createQuotation(
   const client = await prisma.client.findFirst({ where: { id: clientId, organizationId } });
   if (!client) {
     return { error: "Client not found." };
+  }
+
+  let validLeadId: string | null = null;
+  if (leadId) {
+    const lead = await prisma.lead.findFirst({ where: { id: leadId, client: { organizationId } } });
+    if (!lead || lead.clientId !== clientId) {
+      return { error: "Lead not found." };
+    }
+    validLeadId = leadId;
   }
 
   const lineItems = descriptions
@@ -198,6 +209,7 @@ export async function createQuotation(
     data: {
       quoteNumber,
       clientId,
+      leadId: validLeadId,
       amount,
       validUntil: new Date(validUntil),
       lineItems: {
@@ -235,21 +247,286 @@ export async function updateQuotationStatus(
   revalidatePath("/");
 }
 
-export async function updateSiteVisitStatus(
-  visitId: string,
-  status: "SCHEDULED" | "COMPLETED" | "CANCELLED"
+const MAX_PHOTO_SIZE = 10 * 1024 * 1024; // 10MB
+
+async function loadVisitForMutation(visitId: string, organizationId: string) {
+  const visit = await prisma.siteVisit.findFirst({
+    where: { id: visitId, client: { organizationId } },
+  });
+  if (!visit) {
+    throw new Error("Site visit not found");
+  }
+  return visit;
+}
+
+function assertCanManageVisit(
+  user: Awaited<ReturnType<typeof getCurrentUser>>,
+  visit: { assignedToId: string }
 ) {
+  const allowed =
+    user.accessRole === "ADMIN" ||
+    user.accessRole === "SALES" ||
+    user.employeeId === visit.assignedToId;
+  if (!allowed) {
+    throw new Error("Not authorized to update this visit.");
+  }
+}
+
+export async function createSiteVisit(
+  _prevState: FormActionState,
+  formData: FormData
+): Promise<FormActionState> {
+  await requireRole(["ADMIN", "SALES"]);
   const user = await getCurrentUser();
   const organizationId = user.organizationId!;
 
-  const result = await prisma.siteVisit.updateMany({
-    where: { id: visitId, client: { organizationId } },
-    data: { status },
-  });
-  if (result.count === 0) {
-    throw new Error("Site visit not found");
+  const leadId = String(formData.get("leadId") ?? "");
+  const clientId = String(formData.get("clientId") ?? "");
+  const projectId = String(formData.get("projectId") ?? "");
+  const visitType = String(formData.get("visitType") ?? "SALES");
+  const priority = String(formData.get("priority") ?? "MEDIUM");
+  const purpose = String(formData.get("purpose") ?? "").trim();
+  const scheduledDate = String(formData.get("scheduledDate") ?? "");
+  const scheduledTime = String(formData.get("scheduledTime") ?? "").trim() || "09:00";
+  const assignedToId = String(formData.get("assignedToId") ?? "");
+  const contactName = String(formData.get("contactName") ?? "").trim();
+  const contactPhone = String(formData.get("contactPhone") ?? "").trim();
+  const contactEmail = String(formData.get("contactEmail") ?? "").trim();
+  const addressLine = String(formData.get("addressLine") ?? "").trim();
+  const landmark = String(formData.get("landmark") ?? "").trim();
+  const mapsLink = String(formData.get("mapsLink") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim();
+
+  if (!clientId || !purpose || !scheduledDate || !assignedToId) {
+    return { error: "Please fill in all required fields." };
   }
+
+  const client = await prisma.client.findFirst({ where: { id: clientId, organizationId } });
+  if (!client) {
+    return { error: "Client not found." };
+  }
+
+  if (leadId) {
+    const lead = await prisma.lead.findFirst({ where: { id: leadId, client: { organizationId } } });
+    if (!lead || lead.clientId !== clientId) {
+      return { error: "Lead not found." };
+    }
+  }
+
+  if (projectId) {
+    const project = await prisma.project.findFirst({ where: { id: projectId, client: { organizationId } } });
+    if (!project) {
+      return { error: "Project not found." };
+    }
+  }
+
+  const assignee = await prisma.employee.findFirst({ where: { id: assignedToId, organizationId } });
+  if (!assignee) {
+    return { error: "Assigned employee not found." };
+  }
+
+  const scheduledAt = new Date(`${scheduledDate}T${scheduledTime}`);
+  if (Number.isNaN(scheduledAt.getTime())) {
+    return { error: "Enter a valid date and time." };
+  }
+
+  await prisma.siteVisit.create({
+    data: {
+      clientId,
+      projectId: projectId || null,
+      leadId: leadId || null,
+      purpose,
+      visitType: visitType as never,
+      priority: priority as never,
+      scheduledDate: scheduledAt,
+      assignedToId,
+      contactName: contactName || null,
+      contactPhone: contactPhone || null,
+      contactEmail: contactEmail || null,
+      addressLine: addressLine || null,
+      landmark: landmark || null,
+      mapsLink: mapsLink || null,
+      notes: notes || null,
+    },
+  });
+
+  await notifyEmployee(
+    assignedToId,
+    `New site visit scheduled: ${purpose} — ${client.name} on ${formatDate(scheduledAt)}.`,
+    "/me"
+  );
+
   revalidatePath("/crm/site-visits");
+  revalidatePath("/crm");
+  revalidatePath(`/crm/clients/${clientId}`);
+  revalidatePath("/me");
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function startVisit(visitId: string) {
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const visit = await loadVisitForMutation(visitId, organizationId);
+  assertCanManageVisit(user, visit);
+
+  if (visit.status !== "SCHEDULED" && visit.status !== "RESCHEDULED") {
+    throw new Error("Visit already started or finished.");
+  }
+
+  await prisma.siteVisit.update({
+    where: { id: visitId },
+    data: { status: "IN_PROGRESS", actualStartTime: new Date() },
+  });
+
+  revalidatePath("/crm/site-visits");
+  revalidatePath("/me");
+  revalidatePath("/");
+}
+
+export async function rescheduleSiteVisit(visitId: string, newScheduledDate: string, reason: string) {
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const visit = await loadVisitForMutation(visitId, organizationId);
+  assertCanManageVisit(user, visit);
+
+  const trimmedReason = reason.trim();
+  if (!trimmedReason) {
+    throw new Error("A reason is required to reschedule.");
+  }
+
+  const scheduledAt = new Date(newScheduledDate);
+  if (Number.isNaN(scheduledAt.getTime())) {
+    throw new Error("Enter a valid date and time.");
+  }
+
+  await prisma.siteVisit.update({
+    where: { id: visitId },
+    data: { status: "RESCHEDULED", scheduledDate: scheduledAt, rescheduleReason: trimmedReason },
+  });
+
+  await notifyEmployee(
+    visit.assignedToId,
+    `Site visit rescheduled to ${formatDate(scheduledAt)}: ${trimmedReason}`,
+    "/me"
+  );
+
+  revalidatePath("/crm/site-visits");
+  revalidatePath("/me");
+  revalidatePath("/");
+}
+
+export async function completeSiteVisit(
+  _prevState: FormActionState,
+  formData: FormData
+): Promise<FormActionState> {
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const visitId = String(formData.get("visitId") ?? "");
+  const outcome = String(formData.get("outcome") ?? "");
+  const outcomeNotes = String(formData.get("outcomeNotes") ?? "").trim();
+  const customerFeedback = String(formData.get("customerFeedback") ?? "").trim();
+  const recommendedAction = String(formData.get("recommendedAction") ?? "");
+  const recommendedActionNotes = String(formData.get("recommendedActionNotes") ?? "").trim();
+  const followUpDate = String(formData.get("followUpDate") ?? "");
+  const photos = formData
+    .getAll("photos")
+    .filter((f): f is File => f instanceof File && f.size > 0);
+
+  if (!visitId || !outcome) {
+    return { error: "Select an outcome before completing this visit." };
+  }
+  if (photos.length > 0 && !user.employeeId) {
+    return { error: "No employee record linked to this account — can't attach photos." };
+  }
+  for (const photo of photos) {
+    if (photo.size > MAX_PHOTO_SIZE) {
+      return { error: `"${photo.name}" is too large (max 10MB).` };
+    }
+  }
+
+  const visit = await loadVisitForMutation(visitId, organizationId);
+  try {
+    assertCanManageVisit(user, visit);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Not authorized to update this visit." };
+  }
+
+  const now = new Date();
+  const durationMinutes = visit.actualStartTime
+    ? Math.round((now.getTime() - visit.actualStartTime.getTime()) / 60000)
+    : null;
+
+  await prisma.siteVisit.update({
+    where: { id: visitId },
+    data: {
+      status: "COMPLETED",
+      actualEndTime: now,
+      durationMinutes,
+      outcome: outcome as never,
+      outcomeNotes: outcomeNotes || null,
+      customerFeedback: customerFeedback || null,
+      recommendedAction: recommendedAction ? (recommendedAction as never) : null,
+      recommendedActionNotes: recommendedActionNotes || null,
+      followUpDate: followUpDate ? new Date(followUpDate) : undefined,
+    },
+  });
+
+  if (user.employeeId) {
+    for (const photo of photos) {
+      const { url, storageKey } = await saveFile(photo, `site-visits/${visitId}`);
+      await prisma.siteVisitAttachment.create({
+        data: {
+          siteVisitId: visitId,
+          fileUrl: url,
+          storageKey,
+          fileName: photo.name,
+          fileSize: photo.size,
+          uploadedById: user.employeeId,
+        },
+      });
+    }
+  }
+
+  if (visit.leadId) {
+    const [lead, client] = await Promise.all([
+      prisma.lead.findUnique({ where: { id: visit.leadId } }),
+      prisma.client.findUnique({ where: { id: visit.clientId } }),
+    ]);
+    if (lead && client) {
+      await notifyEmployee(
+        lead.ownerId,
+        `Site visit completed — ${client.name}: ${titleCase(outcome)}.`,
+        "/crm/site-visits"
+      );
+    }
+  }
+
+  revalidatePath("/crm/site-visits");
+  revalidatePath("/crm");
+  revalidatePath(`/crm/clients/${visit.clientId}`);
+  revalidatePath("/me");
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function cancelSiteVisit(visitId: string) {
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const visit = await loadVisitForMutation(visitId, organizationId);
+  assertCanManageVisit(user, visit);
+
+  await prisma.siteVisit.update({
+    where: { id: visitId },
+    data: { status: "CANCELLED" },
+  });
+
+  revalidatePath("/crm/site-visits");
+  revalidatePath("/me");
   revalidatePath("/");
 }
 

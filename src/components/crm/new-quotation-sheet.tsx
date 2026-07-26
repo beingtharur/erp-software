@@ -37,11 +37,25 @@ function emptyRow(key: string): LineItemRow {
   return { key, description: "", quantity: "1", unitPrice: "" };
 }
 
-export function NewQuotationSheet({ clients }: { clients: { id: string; name: string }[] }) {
-  const [open, setOpen] = useState(false);
+export function NewQuotationSheet({
+  clients,
+  initialValues,
+  open: openProp,
+  onOpenChange: onOpenChangeProp,
+}: {
+  clients: { id: string; name: string }[];
+  initialValues?: { leadId?: string; clientId?: string };
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp : internalOpen;
+  const setOpen = isControlled ? onOpenChangeProp! : setInternalOpen;
   const [state, formAction, pending] = useActionState(createQuotation, undefined);
   const idPrefix = useId();
   const [rows, setRows] = useState<LineItemRow[]>([emptyRow(`${idPrefix}-0`)]);
+  const lockedClient = clients.find((c) => c.id === initialValues?.clientId);
 
   useEffect(() => {
     if (state?.success) {
@@ -49,6 +63,7 @@ export function NewQuotationSheet({ clients }: { clients: { id: string; name: st
       setOpen(false);
       setRows([emptyRow(`${idPrefix}-0`)]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, idPrefix]);
 
   const total = rows.reduce((sum, row) => {
@@ -71,34 +86,49 @@ export function NewQuotationSheet({ clients }: { clients: { id: string; name: st
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger render={<Button size="sm" />}>
-        <Plus />
-        New Quotation
-      </SheetTrigger>
+      {!isControlled && (
+        <SheetTrigger render={<Button size="sm" />}>
+          <Plus />
+          New Quotation
+        </SheetTrigger>
+      )}
       <SheetContent className="sm:max-w-lg">
         <SheetHeader>
           <SheetTitle>New quotation</SheetTitle>
           <SheetDescription>Build a quote line by line — the total is calculated for you.</SheetDescription>
         </SheetHeader>
         <form action={formAction} className="flex flex-1 flex-col gap-4 overflow-y-auto px-4">
+          {initialValues?.leadId && (
+            <input type="hidden" name="leadId" value={initialValues.leadId} />
+          )}
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="clientId">Client</Label>
-              <Select name="clientId" required>
-                <SelectTrigger id="clientId" className="w-full">
-                  <SelectValue placeholder="Select client">
-                    {(value: unknown) => clients.find((c) => c.id === value)?.name ?? "Select client"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {lockedClient ? (
+              <div className="flex flex-col gap-1.5">
+                <Label>Client</Label>
+                <input type="hidden" name="clientId" value={lockedClient.id} />
+                <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                  {lockedClient.name}
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="clientId">Client</Label>
+                <Select name="clientId" required>
+                  <SelectTrigger id="clientId" className="w-full">
+                    <SelectValue placeholder="Select client">
+                      {(value: unknown) => clients.find((c) => c.id === value)?.name ?? "Select client"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clients.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="validUntil">Valid until</Label>
               <Input id="validUntil" name="validUntil" type="date" required />

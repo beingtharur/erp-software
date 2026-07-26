@@ -16,6 +16,14 @@ export async function getMyAttendanceToday(employeeId: string) {
   });
 }
 
+export async function getMySiteVisits(employeeId: string) {
+  return prisma.siteVisit.findMany({
+    where: { assignedToId: employeeId },
+    orderBy: { scheduledDate: "asc" },
+    include: { client: true, project: true, lead: true, attachments: true },
+  });
+}
+
 export async function getMyLeaveRequests(employeeId: string) {
   return prisma.leaveRequest.findMany({
     where: { employeeId },

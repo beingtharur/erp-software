@@ -1,4 +1,10 @@
-import { getPipelineLeads, getClientOptions, getSalesReps } from "@/lib/queries/crm";
+import {
+  getPipelineLeads,
+  getClientOptions,
+  getSalesReps,
+  getProjectOptionsByClient,
+  getAssignableEmployees,
+} from "@/lib/queries/crm";
 import { getCurrentUser } from "@/lib/dal";
 import { PipelineBoard } from "@/components/crm/pipeline-board";
 import { NewLeadSheet } from "@/components/crm/new-lead-sheet";
@@ -6,10 +12,12 @@ import { NewLeadSheet } from "@/components/crm/new-lead-sheet";
 export default async function PipelinePage() {
   const user = await getCurrentUser();
   const organizationId = user.organizationId!;
-  const [leads, clients, salesReps] = await Promise.all([
+  const [leads, clients, salesReps, projects, employees] = await Promise.all([
     getPipelineLeads(organizationId),
     getClientOptions(organizationId),
     getSalesReps(organizationId),
+    getProjectOptionsByClient(organizationId),
+    getAssignableEmployees(organizationId),
   ]);
 
   return (
@@ -22,7 +30,7 @@ export default async function PipelinePage() {
           currentEmployeeId={user.employeeId}
         />
       </div>
-      <PipelineBoard leads={leads} />
+      <PipelineBoard leads={leads} clientOptions={clients} projects={projects} employees={employees} />
     </div>
   );
 }

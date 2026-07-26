@@ -23,10 +23,16 @@ export default async function AttendancePage() {
   const user = await getCurrentUser();
   const attendance = await getAttendanceToday(user.organizationId!);
 
+  const presentCount = attendance.filter((a) => a.status === "PRESENT" || a.status === "HALF_DAY").length;
+  const absentCount = attendance.filter((a) => a.status === "ABSENT").length;
+  const onLeaveCount = attendance.filter((a) => a.status === "ON_LEAVE").length;
+
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">
         Showing attendance for {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}
+        {" · "}
+        {presentCount} present · {absentCount} absent · {onLeaveCount} on leave
       </p>
       <div className="rounded-lg border">
         <Table>
@@ -56,6 +62,11 @@ export default async function AttendancePage() {
                   <Badge variant={statusVariant[a.status]} className="font-normal">
                     {titleCase(a.status)}
                   </Badge>
+                  {a.leaveType && (
+                    <span className="ml-1.5 text-xs text-muted-foreground">
+                      {titleCase(a.leaveType)}
+                    </span>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

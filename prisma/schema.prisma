@@ -138,6 +138,7 @@ model Employee {
   budgetsRequested        Budget[]
   documents               EmployeeDocument[] @relation("EmployeeDocuments")
   documentsUploaded       EmployeeDocument[] @relation("DocumentUploadedBy")
+  siteVisitAttachmentsUploaded SiteVisitAttachment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -310,6 +311,7 @@ model Lead {
   notes             String?
 
   quotations Quotation[]
+  siteVisits SiteVisit[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -352,8 +354,44 @@ model QuotationLineItem {
 
 enum SiteVisitStatus {
   SCHEDULED
+  IN_PROGRESS
+  RESCHEDULED
   COMPLETED
   CANCELLED
+}
+
+enum VisitPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum VisitType {
+  INSTALLATION
+  INSPECTION
+  SALES
+  MAINTENANCE
+  SUPPORT
+  FOLLOW_UP
+}
+
+enum VisitOutcome {
+  INTERESTED
+  NOT_INTERESTED
+  NEEDS_QUOTATION
+  FOLLOW_UP_REQUIRED
+  NO_DECISION
+  OTHER
+}
+
+enum RecommendedAction {
+  CREATE_QUOTATION
+  SCHEDULE_FOLLOW_UP
+  TECHNICAL_REVIEW
+  AWAIT_CUSTOMER
+  CLOSE_LEAD
+  OTHER
 }
 
 model SiteVisit {
@@ -362,13 +400,65 @@ model SiteVisit {
   client        Client          @relation(fields: [clientId], references: [id])
   projectId     String?
   project       Project?        @relation(fields: [projectId], references: [id])
+  leadId        String?
+  lead          Lead?           @relation(fields: [leadId], references: [id])
   purpose       String
+  visitType     VisitType       @default(SALES)
+  priority      VisitPriority   @default(MEDIUM)
   scheduledDate DateTime
   assignedToId  String
   assignedTo    Employee        @relation(fields: [assignedToId], references: [id])
   status        SiteVisitStatus @default(SCHEDULED)
   notes         String?
   followUpDate  DateTime?
+
+  // On-site contact for this specific visit — a client can have several contacts,
+  // the main Client record only stores one.
+  contactName  String?
+  contactPhone String?
+  contactEmail String?
+
+  // Structured address, kept fully in the schema for future flexibility. The v1 UI
+  // only exposes addressLine/landmark/mapsLink — city/state/pincode stay null and
+  // every read view falls back to the client's city/state, so they're safe to add
+  // to the form later without another migration.
+  addressLine String?
+  city        String?
+  state       String?
+  pincode     String?
+  landmark    String?
+  mapsLink    String?
+
+  // Real elapsed time, distinct from the planned scheduledDate.
+  actualStartTime DateTime?
+  actualEndTime   DateTime?
+  durationMinutes Int?
+
+  rescheduleReason String? // latest reason only — no history log
+
+  // Completion report — populated only when completeSiteVisit runs.
+  outcome                VisitOutcome?
+  outcomeNotes           String?
+  customerFeedback       String?
+  recommendedAction      RecommendedAction?
+  recommendedActionNotes String?
+
+  attachments SiteVisitAttachment[]
+}
+
+model SiteVisitAttachment {
+  id           String    @id @default(cuid())
+  siteVisitId  String
+  siteVisit    SiteVisit @relation(fields: [siteVisitId], references: [id], onDelete: Cascade)
+  fileUrl      String
+  storageKey   String
+  fileName     String
+  fileSize     Int
+  uploadedById String
+  uploadedBy   Employee  @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime  @default(now())
+
+  @@index([siteVisitId])
 }
 
 enum AmcStatus {

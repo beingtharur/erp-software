@@ -2,6 +2,7 @@ import { SiteHeader } from "@/components/layout/site-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { isSameDay } from "date-fns";
 import { getCurrentUser } from "@/lib/dal";
 import {
   getMyAttendance,
@@ -15,10 +16,11 @@ import {
   getTodaysSummary,
   getTeamDailySummaries,
   getProjectOptions,
+  getMySiteVisits,
 } from "@/lib/queries/me";
 import { getMyExpenseClaims } from "@/lib/queries/finance";
 import { getAssignableEmployees } from "@/lib/queries/crm";
-import { formatDate, formatINR, initials, titleCase } from "@/lib/format";
+import { formatDate, formatDateTime, formatINR, initials, titleCase } from "@/lib/format";
 import { ApplyLeaveSheet } from "@/components/me/apply-leave-sheet";
 import { LogTimesheetSheet } from "@/components/me/log-timesheet-sheet";
 import { NewTaskSheet } from "@/components/me/new-task-sheet";
@@ -27,6 +29,8 @@ import { TaskDetailSheet } from "@/components/me/task-detail-sheet";
 import { NewExpenseClaimSheet } from "@/components/me/new-expense-claim-sheet";
 import { AttendanceCheckButton } from "@/components/me/attendance-check-button";
 import { DailySummaryForm } from "@/components/me/daily-summary-form";
+import { SiteVisitActions } from "@/components/crm/site-visit-actions";
+import { VisitReportDialog } from "@/components/crm/visit-report-dialog";
 
 const leaveStatusVariant: Record<string, "default" | "secondary" | "destructive"> = {
   APPROVED: "default",
@@ -65,6 +69,7 @@ export default async function MyHrPage() {
     assignableEmployees,
     todaysSummary,
     myDailySummaries,
+    mySiteVisits,
   ] = employeeId
     ? await Promise.all([
         getMyAttendance(employeeId),
@@ -78,14 +83,32 @@ export default async function MyHrPage() {
         getAssignableEmployees(user.organizationId!),
         getTodaysSummary(employeeId),
         getMyDailySummaries(employeeId),
+        getMySiteVisits(employeeId),
       ])
-    : [[], null, [], [], [], [], [], false, [], null, []];
+    : [[], null, [], [], [], [], [], false, [], null, [], []];
 
   const [assignedTasks, teamSummaries] = employeeId && isManager
     ? await Promise.all([getTasksAssignedByMe(employeeId), getTeamDailySummaries(employeeId)])
     : [[], []];
 
   const presentCount = attendance.filter((a) => a.status === "PRESENT").length;
+
+  const now = new Date();
+  const visitsToday = mySiteVisits.filter(
+    (v) => isSameDay(new Date(v.scheduledDate), now) && v.status !== "CANCELLED"
+  );
+  const visitsUpcoming = mySiteVisits
+    .filter(
+      (v) =>
+        (v.status === "SCHEDULED" || v.status === "RESCHEDULED") &&
+        new Date(v.scheduledDate) > now &&
+        !isSameDay(new Date(v.scheduledDate), now)
+    )
+    .slice(0, 10);
+  const visitsCompleted = mySiteVisits
+    .filter((v) => v.status === "COMPLETED")
+    .sort((a, b) => new Date(b.scheduledDate).getTime() - new Date(a.scheduledDate).getTime())
+    .slice(0, 10);
 
   return (
     <>
@@ -220,6 +243,78 @@ export default async function MyHrPage() {
             </CardContent>
           </Card>
         </div>
+
+        {employeeId && (
+          <div className="flex flex-col gap-3">
+            <div>
+              <h2 className="text-sm font-semibold">My Site Visits</h2>
+              <p className="text-xs text-muted-foreground">Scheduled, in-progress, and completed client visits</p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Today</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {visitsToday.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No visits today.</p>
+                  )}
+                  {visitsToday.map((v) => (
+                    <div key={v.id} className="flex flex-col gap-1.5 border-b pb-3 text-sm last:border-0 last:pb-0">
+                      <p className="font-medium">{v.purpose}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {v.client.name} · {formatDateTime(v.scheduledDate)}
+                        {v.lead ? ` · ${v.lead.title}` : ""}
+                      </p>
+                      <SiteVisitActions visit={v} />
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Upcoming</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {visitsUpcoming.length === 0 && (
+                    <p className="text-sm text-muted-foreground">Nothing scheduled ahead.</p>
+                  )}
+                  {visitsUpcoming.map((v) => (
+                    <div key={v.id} className="flex flex-col gap-1.5 border-b pb-3 text-sm last:border-0 last:pb-0">
+                      <p className="font-medium">{v.purpose}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {v.client.name} · {formatDateTime(v.scheduledDate)}
+                        {v.lead ? ` · ${v.lead.title}` : ""}
+                      </p>
+                      <SiteVisitActions visit={v} />
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Completed</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {visitsCompleted.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No completed visits yet.</p>
+                  )}
+                  {visitsCompleted.map((v) => (
+                    <div key={v.id} className="flex flex-col gap-1.5 border-b pb-3 text-sm last:border-0 last:pb-0">
+                      <p className="font-medium">{v.purpose}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {v.client.name} · {formatDateTime(v.scheduledDate)}
+                      </p>
+                      <VisitReportDialog visit={v} />
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">

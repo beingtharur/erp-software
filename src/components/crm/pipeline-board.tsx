@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { formatDate, formatINR, initials, titleCase } from "@/lib/format";
 import { updateLeadStage } from "@/lib/actions/crm";
-import { MoreHorizontal, Calendar } from "lucide-react";
+import { NewSiteVisitSheet } from "@/components/crm/new-site-visit-sheet";
+import { MoreHorizontal, Calendar, CalendarPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type LeadWithRelations = {
@@ -28,10 +29,14 @@ type LeadWithRelations = {
   probability: number;
   expectedCloseDate: Date;
   source: string;
+  clientId: string;
   client: { name: string; tier: string };
   owner: { name: string };
   quotations: unknown[];
 };
+
+type ProjectOption = { id: string; name: string; clientId: string };
+type EmployeeOption = { id: string; name: string };
 
 const STAGES = [
   { key: "NEW", label: "New" },
@@ -51,8 +56,19 @@ const stageAccent: Record<string, string> = {
   LOST: "bg-red-400",
 };
 
-export function PipelineBoard({ leads }: { leads: LeadWithRelations[] }) {
+export function PipelineBoard({
+  leads,
+  clientOptions,
+  projects,
+  employees,
+}: {
+  leads: LeadWithRelations[];
+  clientOptions: { id: string; name: string }[];
+  projects: ProjectOption[];
+  employees: EmployeeOption[];
+}) {
   const [isPending, startTransition] = useTransition();
+  const [schedulingLead, setSchedulingLead] = useState<LeadWithRelations | null>(null);
 
   function handleMove(leadId: string, stage: string) {
     startTransition(async () => {
@@ -108,6 +124,11 @@ export function PipelineBoard({ leads }: { leads: LeadWithRelations[] }) {
                             </DropdownMenuItem>
                           ))}
                         </DropdownMenuGroup>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setSchedulingLead(lead)}>
+                          <CalendarPlus className="size-3.5" />
+                          Schedule Site Visit
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -140,6 +161,21 @@ export function PipelineBoard({ leads }: { leads: LeadWithRelations[] }) {
           </div>
         );
       })}
+      <NewSiteVisitSheet
+        clients={clientOptions}
+        projects={projects}
+        employees={employees}
+        hideProject
+        open={!!schedulingLead}
+        onOpenChange={(next) => {
+          if (!next) setSchedulingLead(null);
+        }}
+        initialValues={
+          schedulingLead
+            ? { leadId: schedulingLead.id, clientId: schedulingLead.clientId }
+            : undefined
+        }
+      />
     </div>
   );
 }
