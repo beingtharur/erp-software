@@ -142,7 +142,9 @@ export async function createQuotation(
   }
 
   const amount = lineItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-  const count = await prisma.quotation.count({ where: { client: { organizationId } } });
+  // quoteNumber is globally unique (not scoped per organization), so the
+  // count driving it must be global too.
+  const count = await prisma.quotation.count();
   const quoteNumber = `QT-${1001 + count}`;
 
   await prisma.quotation.create({
@@ -353,7 +355,9 @@ export async function createTicket(
     return { error: "Client not found." };
   }
 
-  const count = await prisma.supportTicket.count({ where: { client: { organizationId } } });
+  // ticketNumber is globally unique (not scoped per organization), so the
+  // count driving it must be global too.
+  const count = await prisma.supportTicket.count();
   const ticketNumber = `TKT-${1001 + count}`;
 
   await prisma.supportTicket.create({

@@ -163,7 +163,10 @@ export async function createEmployee(
     return { error: "An employee with this email already exists." };
   }
 
-  const count = await prisma.employee.count({ where: { organizationId } });
+  // employeeCode is globally unique (not scoped per organization), so the
+  // count driving it must be global too — an org-scoped count would collide
+  // with another organization's employees the moment both start from zero.
+  const count = await prisma.employee.count();
   const employeeCode = `EOS-${String(count + 1).padStart(3, "0")}`;
 
   await prisma.employee.create({

@@ -30,7 +30,9 @@ export async function createExpenseClaim(
     return { error: "Enter a valid amount." };
   }
 
-  const count = await prisma.expenseClaim.count({ where: { employee: { organizationId } } });
+  // claimNumber is globally unique (not scoped per organization), so the
+  // count driving it must be global too.
+  const count = await prisma.expenseClaim.count();
   const claimNumber = `EXP-${2001 + count}`;
 
   const claim = await prisma.expenseClaim.create({

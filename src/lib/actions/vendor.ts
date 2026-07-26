@@ -118,7 +118,9 @@ export async function createPurchaseOrder(
     return { error: "Vendor not found." };
   }
 
-  const count = await prisma.purchaseOrder.count({ where: { vendor: { organizationId } } });
+  // poNumber is globally unique (not scoped per organization), so the count
+  // driving it must be global too.
+  const count = await prisma.purchaseOrder.count();
   const poNumber = `PO-${7000 + count + 1}`;
 
   const po = await prisma.purchaseOrder.create({

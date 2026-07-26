@@ -54,7 +54,9 @@ export async function createUserForEmployee(
       return { error: "An employee with this email already exists." };
     }
 
-    const count = await prisma.employee.count({ where: { organizationId } });
+    // employeeCode is globally unique (not scoped per organization) - see the
+    // same fix in actions/hrms.ts::createEmployee.
+    const count = await prisma.employee.count();
     const employeeCode = `EOS-${String(count + 1).padStart(3, "0")}`;
 
     employee = await prisma.employee.create({
