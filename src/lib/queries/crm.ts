@@ -39,7 +39,10 @@ export async function getClientDetail(id: string, organizationId: string) {
     where: { id, organizationId },
     include: {
       leads: { include: { owner: true }, orderBy: { createdAt: "desc" } },
-      quotations: { orderBy: { issuedOn: "desc" } },
+      quotations: {
+        include: { project: { select: { id: true, name: true } } },
+        orderBy: { issuedOn: "desc" },
+      },
       siteVisits: { include: { assignedTo: true }, orderBy: { scheduledDate: "desc" } },
       amcContracts: { orderBy: { endDate: "asc" } },
       projects: true,
@@ -62,6 +65,7 @@ export async function getQuotationDetail(id: string, organizationId: string) {
       client: true,
       lead: true,
       lineItems: { orderBy: { sortOrder: "asc" } },
+      project: { select: { id: true, name: true } },
     },
   });
 }
@@ -82,6 +86,9 @@ export async function getProjectDetail(id: string, organizationId: string) {
     where: { id, client: { organizationId } },
     include: {
       client: true,
+      lead: { select: { id: true, title: true } },
+      quotation: { select: { id: true, quoteNumber: true } },
+      amcContracts: { orderBy: { endDate: "asc" } },
       milestones: {
         orderBy: { sortOrder: "asc" },
         include: { tasks: { include: { assignee: true }, orderBy: { createdAt: "asc" } } },
@@ -129,7 +136,7 @@ export async function getAmcContracts(organizationId: string) {
   return prisma.amcContract.findMany({
     where: { client: { organizationId } },
     orderBy: { endDate: "asc" },
-    include: { client: true },
+    include: { client: true, project: { select: { id: true, name: true } } },
   });
 }
 

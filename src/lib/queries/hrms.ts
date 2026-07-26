@@ -75,7 +75,22 @@ export async function getEmployeeDetail(id: string, organizationId: string) {
       timesheets: { orderBy: { date: "desc" }, take: 10, include: { project: true } },
       reportingTo: true,
       documents: { orderBy: { createdAt: "desc" }, include: { uploadedBy: true } },
+      salaryStructures: { orderBy: { effectiveFrom: "desc" }, take: 6 },
     },
+  });
+}
+
+export async function getActiveSalaryStructure(employeeId: string) {
+  return prisma.salaryStructure.findFirst({
+    where: { employeeId, isActive: true },
+  });
+}
+
+export async function getSalaryStructureHistory(employeeId: string) {
+  return prisma.salaryStructure.findMany({
+    where: { employeeId },
+    orderBy: { effectiveFrom: "desc" },
+    take: 12,
   });
 }
 

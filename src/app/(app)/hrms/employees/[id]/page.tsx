@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { formatDate, formatINR, initials, titleCase } from "@/lib/format";
 import { UploadDocumentSheet } from "@/components/hrms/upload-document-sheet";
 import { DocumentRow } from "@/components/hrms/document-row";
+import { SalaryStructureCard } from "@/components/hrms/salary-structure-card";
 import { Mail, Phone, MapPin } from "lucide-react";
 
 const leaveStatusVariant: Record<string, "default" | "secondary" | "destructive"> = {
@@ -25,6 +26,8 @@ export default async function EmployeeDetailPage({
   const employee = await getEmployeeDetail(id, user.organizationId!);
 
   if (!employee) notFound();
+
+  const activeSalaryStructure = employee.salaryStructures.find((s) => s.isActive) ?? null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -129,6 +132,12 @@ export default async function EmployeeDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      <SalaryStructureCard
+        employeeId={employee.id}
+        active={activeSalaryStructure}
+        history={employee.salaryStructures}
+      />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>

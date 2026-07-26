@@ -5,8 +5,9 @@ import { getCurrentUser } from "@/lib/dal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { QuotationStatusMenu } from "@/components/crm/quotation-status-menu";
+import { ConvertToProjectSheet } from "@/components/crm/convert-to-project-sheet";
 import { formatDate, formatINR } from "@/lib/format";
-import { FileText } from "lucide-react";
+import { FileText, HardHat } from "lucide-react";
 
 export default async function QuotationDetailPage({
   params,
@@ -47,6 +48,45 @@ export default async function QuotationDetailPage({
           </div>
         </CardContent>
       </Card>
+
+      {quotation.project ? (
+        <Card>
+          <CardContent className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
+                <HardHat className="size-5" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Converted Project</p>
+                <p className="text-sm font-medium">{quotation.project.name}</p>
+              </div>
+            </div>
+            <Link
+              href={`/crm/projects/${quotation.project.id}`}
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Open Project →
+            </Link>
+          </CardContent>
+        </Card>
+      ) : quotation.status === "APPROVED" ? (
+        <Card>
+          <CardContent className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Ready to convert</p>
+              <p className="text-xs text-muted-foreground">
+                This quotation is approved — turn it into a project.
+              </p>
+            </div>
+            <ConvertToProjectSheet
+              quotationId={quotation.id}
+              suggestedName={`${quotation.client.name} — ${quotation.quoteNumber}`}
+              suggestedProductLine={quotation.lead?.productLine}
+              amount={quotation.amount}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { requireRole, getCurrentUser } from "@/lib/dal";
 import { notifyEmployee, notifyUser } from "@/lib/notify";
 import { titleCase } from "@/lib/format";
-import { calculateNetPay } from "@/lib/payroll";
+import { calculateNetPay, calculateSalaryComponents } from "@/lib/payroll";
 import { saveFile, deleteFile } from "@/lib/storage";
 import { hashPassword } from "@/lib/password";
 import { roleSectionAccess } from "@/lib/nav";
@@ -60,9 +60,14 @@ export async function processPayroll(payrollId: string) {
   if (!record) {
     throw new Error("Payroll record not found");
   }
+  if (record.status === "PROCESSED") {
+    throw new Error("Payroll is already processed and locked. Unlock it first to reprocess.");
+  }
 
   // Pull any unpaid leave actually taken in this pay period and deduct it for real,
-  // instead of trusting the flat deduction the record was seeded with.
+  // instead of trusting the flat deduction the record was seeded with. baseDeductions
+  // here is whatever statutory total (PF/ESI/tax) generatePayroll already computed
+  // from the salary structure — this just adds the leave-based portion on top.
   const periodStart = new Date(record.year, record.month - 1, 1);
   const periodEnd = new Date(record.year, record.month, 0, 23, 59, 59, 999);
   const unpaidLeave = await prisma.leaveRequest.findMany({
@@ -79,6 +84,8 @@ export async function processPayroll(payrollId: string) {
   const { deductions, netPay } = calculateNetPay({
     basicSalary: record.basicSalary,
     allowances: record.allowances,
+    bonus: record.bonus,
+    overtimePay: record.overtimePay,
     baseDeductions: record.deductions,
     unpaidLeaveDays,
   });
@@ -87,6 +94,22 @@ export async function processPayroll(payrollId: string) {
     where: { id: payrollId },
     data: { status: "PROCESSED", paidOn: new Date(), deductions, netPay },
   });
+  revalidatePath("/hrms/payroll");
+  revalidatePath("/hrms");
+}
+
+export async function unlockPayroll(payrollId: string) {
+  await requireRole(["ADMIN"]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const result = await prisma.payrollRecord.updateMany({
+    where: { id: payrollId, employee: { organizationId }, status: "PROCESSED" },
+    data: { status: "PENDING", paidOn: null },
+  });
+  if (result.count === 0) {
+    throw new Error("Payroll record not found or not currently locked.");
+  }
   revalidatePath("/hrms/payroll");
   revalidatePath("/hrms");
 }
@@ -107,7 +130,7 @@ export async function generatePayroll(month: number, year: number) {
 
   let created = 0;
   let skippedExisting = 0;
-  let skippedNoHistory = 0;
+  let skippedNoSalaryStructure = 0;
 
   for (const emp of employees) {
     const existing = await prisma.payrollRecord.findUnique({
@@ -118,27 +141,33 @@ export async function generatePayroll(month: number, year: number) {
       continue;
     }
 
-    // New months inherit basic/allowances from the employee's most recent prior
-    // record — there's no canonical "base salary" field on Employee itself.
-    const template = await prisma.payrollRecord.findFirst({
-      where: { employeeId: emp.id },
-      orderBy: [{ year: "desc" }, { month: "desc" }],
+    // Payroll is always driven by the employee's active salary structure — never
+    // by copying a prior payroll record — so a brand-new employee with zero
+    // payroll history still generates normally as long as HR has set one up.
+    const structure = await prisma.salaryStructure.findFirst({
+      where: { employeeId: emp.id, isActive: true },
     });
-    if (!template) {
-      skippedNoHistory++;
+    if (!structure) {
+      skippedNoSalaryStructure++;
       continue;
     }
+
+    const { allowances, statutoryDeductions } = calculateSalaryComponents(structure);
+    const netPay = structure.basicSalary + allowances + structure.bonus - statutoryDeductions;
 
     await prisma.payrollRecord.create({
       data: {
         employeeId: emp.id,
         month,
         year,
-        basicSalary: template.basicSalary,
-        allowances: template.allowances,
-        deductions: 0,
-        netPay: template.basicSalary + template.allowances,
+        basicSalary: structure.basicSalary,
+        allowances,
+        bonus: structure.bonus,
+        overtimePay: 0,
+        deductions: statutoryDeductions,
+        netPay,
         status: "PENDING",
+        salaryStructureId: structure.id,
       },
     });
     created++;
@@ -146,7 +175,71 @@ export async function generatePayroll(month: number, year: number) {
 
   revalidatePath("/hrms/payroll");
   revalidatePath("/hrms");
-  return { created, skippedExisting, skippedNoHistory };
+  return { created, skippedExisting, skippedNoSalaryStructure };
+}
+
+export async function createSalaryStructure(
+  _prevState: FormActionState,
+  formData: FormData
+): Promise<FormActionState> {
+  await requireRole(["ADMIN", "HR"]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const employeeId = String(formData.get("employeeId") ?? "");
+  const effectiveFrom = String(formData.get("effectiveFrom") ?? "");
+  const numberFields = [
+    "basicSalary",
+    "hra",
+    "da",
+    "travelAllowance",
+    "medicalAllowance",
+    "specialAllowance",
+    "bonus",
+    "pf",
+    "esi",
+    "professionalTax",
+    "incomeTax",
+    "overtimeRate",
+  ] as const;
+  const values = Object.fromEntries(
+    numberFields.map((field) => [field, Number(formData.get(field) ?? 0)])
+  ) as Record<(typeof numberFields)[number], number>;
+
+  if (!employeeId || !effectiveFrom) {
+    return { error: "Please fill in all required fields." };
+  }
+  if (!Number.isFinite(values.basicSalary) || values.basicSalary <= 0) {
+    return { error: "Enter a valid basic salary." };
+  }
+  for (const field of numberFields) {
+    if (!Number.isFinite(values[field]) || values[field] < 0) {
+      return { error: "Salary components must be valid, non-negative numbers." };
+    }
+  }
+
+  const employee = await prisma.employee.findFirst({ where: { id: employeeId, organizationId } });
+  if (!employee) {
+    return { error: "Employee not found." };
+  }
+
+  await prisma.$transaction([
+    prisma.salaryStructure.updateMany({
+      where: { employeeId, isActive: true },
+      data: { isActive: false },
+    }),
+    prisma.salaryStructure.create({
+      data: {
+        employeeId,
+        effectiveFrom: new Date(effectiveFrom),
+        isActive: true,
+        ...values,
+      },
+    }),
+  ]);
+
+  revalidatePath(`/hrms/employees/${employeeId}`);
+  return { success: true };
 }
 
 export async function createEmployee(

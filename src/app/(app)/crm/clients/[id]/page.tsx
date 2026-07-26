@@ -5,8 +5,17 @@ import { getCurrentUser } from "@/lib/dal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { ClientTimeline } from "@/components/crm/client-timeline";
 import { formatDate, formatINR, titleCase } from "@/lib/format";
 import { Mail, Phone, MapPin, Building2 } from "lucide-react";
+
+const quotationStatusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  DRAFT: "outline",
+  SENT: "secondary",
+  UNDER_REVIEW: "secondary",
+  APPROVED: "default",
+  REJECTED: "destructive",
+};
 
 export default async function ClientDetailPage({
   params,
@@ -60,6 +69,16 @@ export default async function ClientDetailPage({
         </CardContent>
       </Card>
 
+      <ClientTimeline
+        counts={{
+          leads: client.leads.length,
+          siteVisits: client.siteVisits.length,
+          quotations: client.quotations.length,
+          projects: client.projects.length,
+          amcContracts: client.amcContracts.length,
+        }}
+      />
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Card className="py-4">
           <CardContent className="px-4">
@@ -109,6 +128,38 @@ export default async function ClientDetailPage({
               <div className="flex items-center gap-3 shrink-0">
                 <span className="font-mono">{formatINR(lead.value)}</span>
                 <Badge variant="secondary" className="font-normal">{titleCase(lead.stage)}</Badge>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Quotations</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {client.quotations.length === 0 && (
+            <p className="text-sm text-muted-foreground">No quotations yet.</p>
+          )}
+          {client.quotations.map((q) => (
+            <div
+              key={q.id}
+              className="flex items-center justify-between gap-3 border-b pb-3 text-sm last:border-0 last:pb-0"
+            >
+              <div className="min-w-0">
+                <Link href={`/crm/quotations/${q.id}`} className="font-medium hover:underline">
+                  {q.quoteNumber}
+                </Link>
+                {q.project && (
+                  <p className="truncate text-xs text-muted-foreground">→ {q.project.name}</p>
+                )}
+              </div>
+              <div className="flex shrink-0 items-center gap-3">
+                <span className="font-mono">{formatINR(q.amount)}</span>
+                <Badge variant={quotationStatusVariant[q.status]} className="font-normal">
+                  {titleCase(q.status)}
+                </Badge>
               </div>
             </div>
           ))}

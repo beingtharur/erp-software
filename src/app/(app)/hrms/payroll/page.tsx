@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatINR } from "@/lib/format";
 import { ProcessPayrollButton } from "@/components/hrms/process-payroll-button";
 import { GeneratePayrollButton } from "@/components/hrms/generate-payroll-button";
+import { UnlockPayrollButton } from "@/components/hrms/unlock-payroll-button";
 
 const monthLabel = (month: number, year: number) =>
   new Date(year, month - 1).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
@@ -19,6 +20,7 @@ const monthLabel = (month: number, year: number) =>
 export default async function PayrollPage() {
   const user = await getCurrentUser();
   const records = await getPayrollRecords(user.organizationId!);
+  const isAdmin = user.accessRole === "ADMIN";
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4">
@@ -66,7 +68,10 @@ export default async function PayrollPage() {
                       <ProcessPayrollButton payrollId={r.id} />
                     </div>
                   ) : (
-                    <Badge className="font-normal">Processed</Badge>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Badge className="font-normal">Processed</Badge>
+                      {isAdmin && <UnlockPayrollButton payrollId={r.id} />}
+                    </div>
                   )}
                 </TableCell>
               </TableRow>

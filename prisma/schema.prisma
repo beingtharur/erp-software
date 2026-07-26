@@ -139,6 +139,7 @@ model Employee {
   documents               EmployeeDocument[] @relation("EmployeeDocuments")
   documentsUploaded       EmployeeDocument[] @relation("DocumentUploadedBy")
   siteVisitAttachmentsUploaded SiteVisitAttachment[]
+  salaryStructures        SalaryStructure[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -203,19 +204,53 @@ enum PayrollStatus {
 }
 
 model PayrollRecord {
-  id          String        @id @default(cuid())
-  employeeId  String
-  employee    Employee      @relation(fields: [employeeId], references: [id])
-  month       Int
-  year        Int
-  basicSalary Float
-  allowances  Float
-  deductions  Float
-  netPay      Float
-  status      PayrollStatus @default(PENDING)
-  paidOn      DateTime?
+  id                String           @id @default(cuid())
+  employeeId        String
+  employee          Employee         @relation(fields: [employeeId], references: [id])
+  month             Int
+  year              Int
+  basicSalary       Float
+  allowances        Float
+  bonus             Float            @default(0)
+  overtimePay       Float            @default(0)
+  deductions        Float
+  netPay            Float
+  status            PayrollStatus    @default(PENDING)
+  paidOn            DateTime?
+  salaryStructureId String?
+  salaryStructure   SalaryStructure? @relation(fields: [salaryStructureId], references: [id])
 
   @@unique([employeeId, month, year])
+}
+
+// One active structure per employee, enforced in application code (createSalaryStructure
+// deactivates the prior active row inside a transaction before creating the new one) —
+// SQLite/Prisma has no portable partial-unique-index for "unique where isActive=true".
+// Historical rows are never deleted or overwritten, so past PayrollRecords keep pointing
+// at (and were generated from) the structure that was actually active at the time.
+model SalaryStructure {
+  id               String   @id @default(cuid())
+  employeeId       String
+  employee         Employee @relation(fields: [employeeId], references: [id])
+  basicSalary      Float
+  hra              Float    @default(0)
+  da               Float    @default(0)
+  travelAllowance  Float    @default(0)
+  medicalAllowance Float    @default(0)
+  specialAllowance Float    @default(0)
+  bonus            Float    @default(0)
+  pf               Float    @default(0)
+  esi              Float    @default(0)
+  professionalTax  Float    @default(0)
+  incomeTax        Float    @default(0)
+  overtimeRate     Float    @default(0)
+  effectiveFrom    DateTime
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  payrollRecords PayrollRecord[]
+
+  @@index([employeeId, isActive])
 }
 
 model Timesheet {
@@ -312,6 +347,7 @@ model Lead {
 
   quotations Quotation[]
   siteVisits SiteVisit[]
+  projects   Project[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -339,6 +375,7 @@ model Quotation {
   issuedOn    DateTime        @default(now())
 
   lineItems QuotationLineItem[]
+  project   Project?
 }
 
 model QuotationLineItem {
@@ -467,11 +504,21 @@ enum AmcStatus {
   EXPIRED
 }
 
+enum BillingFrequency {
+  MONTHLY
+  QUARTERLY
+  HALF_YEARLY
+  ANNUALLY
+}
+
 model AmcContract {
   id               String    @id @default(cuid())
   contractNumber   String    @unique
   clientId         String
   client           Client    @relation(fields: [clientId], references: [id])
+  projectId        String?
+  project          Project?  @relation(fields: [projectId], references: [id])
+  contractName     String?
   equipmentCovered String
   startDate        DateTime
   endDate          DateTime
@@ -479,6 +526,15 @@ model AmcContract {
   status           AmcStatus @default(ACTIVE)
   lastServiceDate  DateTime?
   nextServiceDate  DateTime?
+
+  // Added for the "Project Completed -> Create AMC" workflow — all optional since
+  // existing seeded contracts predate them.
+  coverage            String?
+  visitsIncluded      Int?
+  responseTime        String?
+  billingFrequency    BillingFrequency?
+  renewalReminderDays Int?
+  notes               String?
 
   supportTickets SupportTicket[]
 }
@@ -493,8 +549,13 @@ enum ProjectStatus {
 model Project {
   id              String        @id @default(cuid())
   name            String
+  description     String?
   clientId        String
   client          Client        @relation(fields: [clientId], references: [id])
+  leadId          String?
+  lead            Lead?         @relation(fields: [leadId], references: [id])
+  quotationId     String?       @unique
+  quotation       Quotation?    @relation(fields: [quotationId], references: [id])
   productLine     ProductLine
   industry        Industry
   value           Float
@@ -508,6 +569,7 @@ model Project {
   geofenceZones GeofenceZone[]
   milestones    Milestone[]
   tasks         ProjectTask[]
+  amcContracts  AmcContract[]
 }
 
 enum MilestoneStatus {

@@ -34,7 +34,7 @@ export function GeneratePayrollButton() {
         } else if (result.skippedExisting > 0) {
           toast.error("Payroll for this period already exists.");
         } else {
-          toast.error("No employees with prior payroll history to generate from.");
+          toast.error("No employees have an active salary structure configured.");
         }
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Could not generate payroll");

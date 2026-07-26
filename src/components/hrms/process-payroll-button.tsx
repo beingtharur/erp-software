@@ -18,8 +18,8 @@ export function ProcessPayrollButton({ payrollId }: { payrollId: string }) {
           try {
             await processPayroll(payrollId);
             toast.success("Payroll processed");
-          } catch {
-            toast.error("Could not process payroll");
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Could not process payroll");
           }
         })
       }

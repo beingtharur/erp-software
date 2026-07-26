@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireRole, getCurrentUser } from "@/lib/dal";
-import { notifyRole, notifyEmployee } from "@/lib/notify";
+import { notifyRole, notifyEmployee, notifyEmployeeRole } from "@/lib/notify";
 import { formatINR, formatDate, titleCase } from "@/lib/format";
 import { saveFile } from "@/lib/storage";
 
@@ -245,6 +245,83 @@ export async function updateQuotationStatus(
   }
   revalidatePath("/crm/quotations");
   revalidatePath("/");
+}
+
+export async function convertQuotationToProject(
+  _prevState: FormActionState,
+  formData: FormData
+): Promise<FormActionState> {
+  await requireRole(["ADMIN", "SALES"]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const quotationId = String(formData.get("quotationId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const productLine = String(formData.get("productLine") ?? "");
+  const startDate = String(formData.get("startDate") ?? "");
+  const targetEndDate = String(formData.get("targetEndDate") ?? "");
+  const value = Number(formData.get("value"));
+
+  if (!quotationId || !name || !productLine || !startDate || !targetEndDate) {
+    return { error: "Please fill in all required fields." };
+  }
+  if (!Number.isFinite(value) || value <= 0) {
+    return { error: "Enter a valid project value." };
+  }
+
+  const quotation = await prisma.quotation.findFirst({
+    where: { id: quotationId, client: { organizationId } },
+    include: { client: true, project: true },
+  });
+  if (!quotation) {
+    return { error: "Quotation not found." };
+  }
+  if (quotation.status !== "APPROVED") {
+    return { error: "Only approved quotations can be converted." };
+  }
+  if (quotation.project) {
+    return { error: "Project already created." };
+  }
+
+  const project = await prisma.project.create({
+    data: {
+      name,
+      description: description || null,
+      clientId: quotation.clientId,
+      leadId: quotation.leadId,
+      quotationId: quotation.id,
+      productLine: productLine as never,
+      industry: quotation.client.industry,
+      value,
+      startDate: new Date(startDate),
+      targetEndDate: new Date(targetEndDate),
+    },
+  });
+
+  await Promise.all([
+    notifyEmployeeRole(
+      "PROJECT_MANAGER",
+      organizationId,
+      `New project "${name}" created from quotation ${quotation.quoteNumber} — ${quotation.client.name}.`,
+      `/crm/projects/${project.id}`
+    ),
+    notifyRole(
+      "ADMIN",
+      organizationId,
+      `New project "${name}" created from quotation ${quotation.quoteNumber} — ${quotation.client.name}.`,
+      `/crm/projects/${project.id}`
+    ),
+  ]);
+
+  revalidatePath(`/crm/quotations/${quotationId}`);
+  revalidatePath("/crm/quotations");
+  revalidatePath("/crm/projects");
+  revalidatePath(`/crm/projects/${project.id}`);
+  revalidatePath(`/crm/clients/${quotation.clientId}`);
+  revalidatePath("/crm");
+  revalidatePath("/");
+  return { success: true };
 }
 
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024; // 10MB
@@ -771,6 +848,96 @@ export async function resolveTicket(
 
   revalidatePath("/crm/helpdesk");
   revalidatePath(`/crm/helpdesk/${ticketId}`);
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function createAmcContract(
+  _prevState: FormActionState,
+  formData: FormData
+): Promise<FormActionState> {
+  await requireRole(["ADMIN", "SALES"]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const clientId = String(formData.get("clientId") ?? "");
+  const projectId = String(formData.get("projectId") ?? "");
+  const contractName = String(formData.get("contractName") ?? "").trim();
+  const equipmentCovered = String(formData.get("equipmentCovered") ?? "").trim();
+  const startDate = String(formData.get("startDate") ?? "");
+  const endDate = String(formData.get("endDate") ?? "");
+  const value = Number(formData.get("value"));
+  const coverage = String(formData.get("coverage") ?? "").trim();
+  const visitsIncluded = Number(formData.get("visitsIncluded"));
+  const responseTime = String(formData.get("responseTime") ?? "").trim();
+  const billingFrequency = String(formData.get("billingFrequency") ?? "");
+  const renewalReminderDays = Number(formData.get("renewalReminderDays"));
+  const notes = String(formData.get("notes") ?? "").trim();
+
+  if (!clientId || !equipmentCovered || !startDate || !endDate) {
+    return { error: "Please fill in all required fields." };
+  }
+  if (!Number.isFinite(value) || value <= 0) {
+    return { error: "Enter a valid contract value." };
+  }
+
+  const client = await prisma.client.findFirst({ where: { id: clientId, organizationId } });
+  if (!client) {
+    return { error: "Client not found." };
+  }
+
+  let project: { id: string; name: string; status: string } | null = null;
+  if (projectId) {
+    project = await prisma.project.findFirst({
+      where: { id: projectId, client: { organizationId } },
+      select: { id: true, name: true, status: true },
+    });
+    if (!project) {
+      return { error: "Project not found." };
+    }
+    if (project.status !== "COMPLETED") {
+      return { error: "AMC contracts can only be created for completed projects." };
+    }
+  }
+
+  // contractNumber is globally unique (not scoped per organization), so the
+  // count driving it must be global too — matches the seed data's AMC-501+ scheme.
+  const count = await prisma.amcContract.count();
+  const contractNumber = `AMC-${501 + count}`;
+
+  await prisma.amcContract.create({
+    data: {
+      contractNumber,
+      clientId,
+      projectId: projectId || null,
+      contractName: contractName || null,
+      equipmentCovered,
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+      value,
+      coverage: coverage || null,
+      visitsIncluded: Number.isFinite(visitsIncluded) && visitsIncluded > 0 ? visitsIncluded : null,
+      responseTime: responseTime || null,
+      billingFrequency: billingFrequency ? (billingFrequency as never) : null,
+      renewalReminderDays:
+        Number.isFinite(renewalReminderDays) && renewalReminderDays > 0 ? renewalReminderDays : null,
+      notes: notes || null,
+    },
+  });
+
+  await notifyRole(
+    "SALES",
+    organizationId,
+    `AMC ready for review: ${contractName || contractNumber} — ${client.name}.`,
+    "/crm/amc"
+  );
+
+  revalidatePath("/crm/amc");
+  revalidatePath(`/crm/clients/${clientId}`);
+  if (projectId) {
+    revalidatePath(`/crm/projects/${projectId}`);
+  }
+  revalidatePath("/crm");
   revalidatePath("/");
   return { success: true };
 }

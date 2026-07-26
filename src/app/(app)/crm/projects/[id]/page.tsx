@@ -9,14 +9,21 @@ import { NewMilestoneSheet } from "@/components/crm/new-milestone-sheet";
 import { NewProjectTaskSheet } from "@/components/crm/new-project-task-sheet";
 import { ProjectTaskRow } from "@/components/crm/project-task-row";
 import { MilestoneStatusMenu } from "@/components/crm/milestone-status-menu";
+import { NewAmcContractSheet } from "@/components/crm/new-amc-contract-sheet";
 import { formatDate, formatINR, titleCase } from "@/lib/format";
-import { HardHat } from "lucide-react";
+import { HardHat, ShieldCheck } from "lucide-react";
 
 const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
   PLANNING: "outline",
   IN_PROGRESS: "secondary",
   COMMISSIONING: "secondary",
   COMPLETED: "default",
+};
+
+const amcStatusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  ACTIVE: "default",
+  EXPIRING_SOON: "destructive",
+  EXPIRED: "secondary",
 };
 
 export default async function ProjectDetailPage({
@@ -58,6 +65,15 @@ export default async function ProjectDetailPage({
                 {" · "}
                 {titleCase(project.productLine)}
               </p>
+              {project.quotation && (
+                <p className="text-xs text-muted-foreground">
+                  Converted from{" "}
+                  <Link href={`/crm/quotations/${project.quotation.id}`} className="hover:underline">
+                    {project.quotation.quoteNumber}
+                  </Link>
+                  {project.lead ? ` · ${project.lead.title}` : ""}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex flex-col gap-1 text-sm text-muted-foreground sm:items-end">
@@ -124,6 +140,51 @@ export default async function ProjectDetailPage({
             <p className="text-sm text-muted-foreground">No standalone tasks.</p>
           ) : (
             project.tasks.map((task) => <ProjectTaskRow key={task.id} task={task} />)
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-sm">AMC Contracts</CardTitle>
+          {project.status === "COMPLETED" && (
+            <NewAmcContractSheet
+              clients={[]}
+              initialValues={{
+                clientId: project.clientId,
+                clientName: project.client.name,
+                projectId: project.id,
+                contractName: `Annual Maintenance — ${project.name}`,
+                value: project.value,
+              }}
+            />
+          )}
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {project.amcContracts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {project.status === "COMPLETED"
+                ? "No AMC contracts yet — create one above."
+                : "AMC contracts can be created once this project is completed."}
+            </p>
+          ) : (
+            project.amcContracts.map((amc) => (
+              <div
+                key={amc.id}
+                className="flex items-center justify-between gap-3 border-b pb-3 text-sm last:border-0 last:pb-0"
+              >
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="size-4 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium">{amc.contractName || amc.contractNumber}</p>
+                    <p className="text-xs text-muted-foreground">Expires {formatDate(amc.endDate)}</p>
+                  </div>
+                </div>
+                <Badge variant={amcStatusVariant[amc.status]} className="font-normal">
+                  {titleCase(amc.status)}
+                </Badge>
+              </div>
+            ))
           )}
         </CardContent>
       </Card>
