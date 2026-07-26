@@ -18,6 +18,53 @@ const VALID_STAGES = [
 ] as const;
 type LeadStage = (typeof VALID_STAGES)[number];
 
+export async function createClient(
+  _prevState: FormActionState,
+  formData: FormData
+): Promise<FormActionState> {
+  await requireRole(["ADMIN", "SALES"]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const name = String(formData.get("name") ?? "").trim();
+  const industry = String(formData.get("industry") ?? "");
+  const tier = String(formData.get("tier") ?? "").trim();
+  const city = String(formData.get("city") ?? "").trim();
+  const state = String(formData.get("state") ?? "").trim();
+  const contactName = String(formData.get("contactName") ?? "").trim();
+  const contactTitle = String(formData.get("contactTitle") ?? "").trim();
+  const contactEmail = String(formData.get("contactEmail") ?? "").trim().toLowerCase();
+  const contactPhone = String(formData.get("contactPhone") ?? "").trim();
+
+  if (
+    !name || !industry || !tier || !city || !state ||
+    !contactName || !contactTitle || !contactEmail || !contactPhone
+  ) {
+    return { error: "Please fill in all fields." };
+  }
+
+  await prisma.client.create({
+    data: {
+      name,
+      industry: industry as never,
+      tier,
+      city,
+      state,
+      contactName,
+      contactTitle,
+      contactEmail,
+      contactPhone,
+      logoSeed: name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+      status: "Active",
+      organizationId,
+    },
+  });
+
+  revalidatePath("/crm/clients");
+  revalidatePath("/crm");
+  return { success: true };
+}
+
 export async function createLead(
   _prevState: FormActionState,
   formData: FormData
