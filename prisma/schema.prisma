@@ -44,26 +44,42 @@ enum AccessRole {
 }
 
 model User {
-  id                String             @id @default(cuid())
-  email             String             @unique
-  passwordHash      String
-  passwordSalt      String
-  accessRole        AccessRole
-  employeeId        String?            @unique
-  employee          Employee?          @relation(fields: [employeeId], references: [id])
+  id                  String               @id @default(cuid())
+  email               String               @unique
+  passwordHash        String
+  passwordSalt        String
+  accessRole          AccessRole
+  employeeId          String?              @unique
+  employee            Employee?            @relation(fields: [employeeId], references: [id])
   // Nullable by design, not just migration leftover: the platform super-admin
   // (isSuperAdmin=true) reviews payments across every organization and therefore
   // belongs to none. Every regular org user has this set at creation time.
-  organizationId    String?
-  organization      Organization?      @relation(fields: [organizationId], references: [id])
-  isSuperAdmin      Boolean            @default(false)
-  notifications     Notification[]
-  moduleAccess      UserModuleAccess[]
-  paymentsSubmitted Payment[]          @relation("PaymentSubmittedBy")
-  paymentsReviewed  Payment[]          @relation("PaymentReviewedBy")
-  createdAt         DateTime           @default(now())
+  organizationId      String?
+  organization        Organization?        @relation(fields: [organizationId], references: [id])
+  isSuperAdmin        Boolean              @default(false)
+  notifications       Notification[]
+  moduleAccess        UserModuleAccess[]
+  paymentsSubmitted   Payment[]            @relation("PaymentSubmittedBy")
+  paymentsReviewed    Payment[]            @relation("PaymentReviewedBy")
+  passwordResetTokens PasswordResetToken[]
+  createdAt           DateTime             @default(now())
 
   @@index([organizationId])
+}
+
+// Only the token's hash is ever stored — the raw token exists only in the
+// emailed link and is never persisted, so a DB leak alone can't be used to
+// reset anyone's password. usedAt makes every token single-use.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 model Notification {
@@ -126,20 +142,20 @@ model Employee {
   locationPings  LocationPing[]
   visitLogs      VisitLog[]
 
-  approvalRequestsMade    ApprovalRequest[]  @relation("ApprovalRequestedBy")
-  approvalRequestsDecided ApprovalRequest[]  @relation("ApprovalDecidedBy")
-  personalTasks           PersonalTask[]
-  tasksAssignedByMe       PersonalTask[]     @relation("TaskAssignedBy")
-  taskComments            TaskComment[]
-  dailySummaries          DailySummary[]
-  assignedProjectTasks    ProjectTask[]
-  assignedTickets         SupportTicket[]
-  expenseClaims           ExpenseClaim[]
-  budgetsRequested        Budget[]
-  documents               EmployeeDocument[] @relation("EmployeeDocuments")
-  documentsUploaded       EmployeeDocument[] @relation("DocumentUploadedBy")
+  approvalRequestsMade         ApprovalRequest[]     @relation("ApprovalRequestedBy")
+  approvalRequestsDecided      ApprovalRequest[]     @relation("ApprovalDecidedBy")
+  personalTasks                PersonalTask[]
+  tasksAssignedByMe            PersonalTask[]        @relation("TaskAssignedBy")
+  taskComments                 TaskComment[]
+  dailySummaries               DailySummary[]
+  assignedProjectTasks         ProjectTask[]
+  assignedTickets              SupportTicket[]
+  expenseClaims                ExpenseClaim[]
+  budgetsRequested             Budget[]
+  documents                    EmployeeDocument[]    @relation("EmployeeDocuments")
+  documentsUploaded            EmployeeDocument[]    @relation("DocumentUploadedBy")
   siteVisitAttachmentsUploaded SiteVisitAttachment[]
-  salaryStructures        SalaryStructure[]
+  salaryStructures             SalaryStructure[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
