@@ -143,6 +143,14 @@ export async function getSiteVisits(organizationId: string) {
   });
 }
 
+export async function getLeadOptionsByClient(organizationId: string) {
+  return prisma.lead.findMany({
+    where: { client: { organizationId } },
+    orderBy: { title: "asc" },
+    select: { id: true, title: true, clientId: true },
+  });
+}
+
 export async function getProjectOptionsByClient(organizationId: string) {
   return prisma.project.findMany({
     where: { client: { organizationId } },

@@ -37,7 +37,26 @@ export async function createUserForEmployee(
     return { error: "Password must be at least 6 characters." };
   }
 
-  let employee: { id: string; email: string };
+  // "new" mode's employee fields, validated up front but NOT created yet —
+  // previously the Employee row was created here, outside (and before) the
+  // transaction that creates the User. If the request was interrupted or the
+  // transaction below failed for any reason (e.g. licence limit), the
+  // Employee row was left committed with no login and no way to complete
+  // it — a retry with the same email would just report "employee already
+  // exists" forever. Both rows are now created inside the same transaction
+  // so the whole operation is all-or-nothing.
+  let newEmployeeFields:
+    | {
+        name: string;
+        role: string;
+        department: string;
+        email: string;
+        phone: string;
+        dateOfJoining: string;
+        baseLocation: string;
+      }
+    | undefined;
+  let existingEmployee: { id: string; email: string } | undefined;
 
   if (mode === "new") {
     const name = String(formData.get("name") ?? "").trim();
@@ -52,32 +71,11 @@ export async function createUserForEmployee(
       return { error: "Please fill in all fields." };
     }
 
-    const existingEmployee = await prisma.employee.findUnique({ where: { email } });
-    if (existingEmployee) {
+    const alreadyThere = await prisma.employee.findUnique({ where: { email } });
+    if (alreadyThere) {
       return { error: "An employee with this email already exists." };
     }
-
-    // employeeCode is globally unique (not scoped per organization) - see the
-    // same fix in actions/hrms.ts::createEmployee. Retry on collision (see
-    // sequence.ts) since count-then-insert isn't atomic.
-    employee = await withUniqueCodeRetry(async () => {
-      const count = await prisma.employee.count();
-      const employeeCode = `EOS-${String(count + 1).padStart(3, "0")}`;
-      return prisma.employee.create({
-        data: {
-          employeeCode,
-          name,
-          role: role as never,
-          department,
-          email,
-          phone,
-          dateOfJoining: new Date(dateOfJoining),
-          baseLocation,
-          avatarSeed: employeeCode,
-          organizationId,
-        },
-      });
-    });
+    newEmployeeFields = { name, role, department, email, phone, dateOfJoining, baseLocation };
   } else {
     const employeeId = String(formData.get("employeeId") ?? "");
     if (!employeeId) {
@@ -93,10 +91,11 @@ export async function createUserForEmployee(
     if (found.user) {
       return { error: "This employee already has portal access." };
     }
-    employee = found;
+    existingEmployee = found;
   }
 
-  const existingEmail = await prisma.user.findUnique({ where: { email: employee.email } });
+  const employeeEmail = newEmployeeFields?.email ?? existingEmployee!.email;
+  const existingEmail = await prisma.user.findUnique({ where: { email: employeeEmail } });
   if (existingEmail) {
     return { error: "A login already exists with this employee's email." };
   }
@@ -105,36 +104,63 @@ export async function createUserForEmployee(
 
   let newUser;
   try {
-    newUser = await prisma.$transaction(async (tx) => {
-      const created = await tx.user.create({
-        data: {
-          email: employee.email,
-          passwordHash: hash,
-          passwordSalt: salt,
-          accessRole: accessRole as AccessRole,
-          employeeId: employee.id,
-          organizationId,
-          moduleAccess: {
-            create: roleSectionAccess[accessRole as AccessRole].map((module) => ({ module })),
+    newUser = await withUniqueCodeRetry(() =>
+      prisma.$transaction(async (tx) => {
+        let employeeId = existingEmployee?.id;
+
+        if (newEmployeeFields) {
+          // employeeCode is globally unique (not scoped per organization) - see
+          // the same fix in actions/hrms.ts::createEmployee.
+          const count = await tx.employee.count();
+          const employeeCode = `EOS-${String(count + 1).padStart(3, "0")}`;
+          const createdEmployee = await tx.employee.create({
+            data: {
+              employeeCode,
+              name: newEmployeeFields.name,
+              role: newEmployeeFields.role as never,
+              department: newEmployeeFields.department,
+              email: newEmployeeFields.email,
+              phone: newEmployeeFields.phone,
+              dateOfJoining: new Date(newEmployeeFields.dateOfJoining),
+              baseLocation: newEmployeeFields.baseLocation,
+              avatarSeed: employeeCode,
+              organizationId,
+            },
+          });
+          employeeId = createdEmployee.id;
+        }
+
+        const created = await tx.user.create({
+          data: {
+            email: employeeEmail,
+            passwordHash: hash,
+            passwordSalt: salt,
+            accessRole: accessRole as AccessRole,
+            employeeId: employeeId!,
+            organizationId,
+            moduleAccess: {
+              create: roleSectionAccess[accessRole as AccessRole].map((module) => ({ module })),
+            },
           },
-        },
-      });
+        });
 
-      // Re-check the licence count *after* the insert, inside the same
-      // transaction: the insert forces SQLite's write lock, so a concurrent
-      // creation can't slip in between the count and the create — whichever
-      // transaction commits first wins the last licence, and the loser's
-      // recount (including its own just-inserted row) will be over the limit
-      // and get rolled back here.
-      const subscription = await tx.subscription.findUnique({ where: { organizationId } });
-      const licencedUsers = subscription?.licencedUsers ?? 0;
-      const currentUserCount = await tx.user.count({ where: { organizationId } });
-      if (currentUserCount > licencedUsers) {
-        throw new LicenceLimitError(licencedUsers);
-      }
+        // Re-check the licence count *after* the insert, inside the same
+        // transaction: the insert forces SQLite's write lock, so a concurrent
+        // creation can't slip in between the count and the create — whichever
+        // transaction commits first wins the last licence, and the loser's
+        // recount (including its own just-inserted row) will be over the limit
+        // and get rolled back here (which now also rolls back the Employee
+        // row created above, instead of leaving it orphaned).
+        const subscription = await tx.subscription.findUnique({ where: { organizationId } });
+        const licencedUsers = subscription?.licencedUsers ?? 0;
+        const currentUserCount = await tx.user.count({ where: { organizationId } });
+        if (currentUserCount > licencedUsers) {
+          throw new LicenceLimitError(licencedUsers);
+        }
 
-      return created;
-    });
+        return created;
+      })
+    );
   } catch (err) {
     if (err instanceof LicenceLimitError) {
       return {

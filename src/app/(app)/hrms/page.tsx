@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getHrmsOverview } from "@/lib/queries/hrms";
 import { getCurrentUser } from "@/lib/dal";
 import { KpiCard } from "@/components/dashboard/kpi-card";
@@ -49,7 +50,10 @@ export default async function HrmsOverviewPage() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Pending leave requests</CardTitle>
-            <CardDescription>Awaiting HR approval</CardDescription>
+            <CardDescription>
+              Awaiting HR approval
+              {data.pendingLeave > 0 && ` · ${data.pendingLeave} total`}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {data.recentLeaveRequests.length === 0 && (
@@ -74,6 +78,14 @@ export default async function HrmsOverviewPage() {
                 <LeaveDecisionButtons leaveId={leave.id} />
               </div>
             ))}
+            {data.pendingLeave > data.recentLeaveRequests.length && (
+              <Link
+                href="/hrms/leave"
+                className="block pt-1 text-sm font-medium text-primary hover:underline"
+              >
+                View all {data.pendingLeave} pending requests →
+              </Link>
+            )}
           </CardContent>
         </Card>
 

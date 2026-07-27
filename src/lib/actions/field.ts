@@ -13,6 +13,68 @@ function jitter(lat: number, lng: number, maxMeters: number) {
   return { lat: lat + dLat, lng: lng + dLng };
 }
 
+// Previously there was no way to create a Site/GeofenceZone anywhere in the
+// app — the read-only Geofences table and the check-in Site picker could
+// only ever show zones seeded directly in the database, so a freshly
+// registered org had zero sites and no way to add one. Gated ADMIN-only:
+// defining a site is a one-time config action, not something a FIELD rep
+// does day-to-day (mirrors Client/Vendor creation being ADMIN/role-gated
+// elsewhere).
+export async function createGeofence(
+  _prevState: FormActionState,
+  formData: FormData
+): Promise<FormActionState> {
+  await requireRole(["ADMIN"]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const name = String(formData.get("name") ?? "").trim();
+  const clientId = String(formData.get("clientId") ?? "") || null;
+  const projectId = String(formData.get("projectId") ?? "") || null;
+  const latitude = Number(formData.get("latitude"));
+  const longitude = Number(formData.get("longitude"));
+  const radiusRaw = formData.get("radiusMeters");
+  const radiusMeters = radiusRaw ? Number(radiusRaw) : 300;
+
+  if (!name) {
+    return { error: "Enter a site name." };
+  }
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+    return { error: "Enter a valid latitude (-90 to 90)." };
+  }
+  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    return { error: "Enter a valid longitude (-180 to 180)." };
+  }
+  if (!Number.isFinite(radiusMeters) || radiusMeters <= 0) {
+    return { error: "Enter a valid radius in meters." };
+  }
+
+  if (clientId) {
+    const client = await prisma.client.findFirst({ where: { id: clientId, organizationId } });
+    if (!client) return { error: "Client not found." };
+  }
+  if (projectId) {
+    const project = await prisma.project.findFirst({ where: { id: projectId, client: { organizationId } } });
+    if (!project) return { error: "Project not found." };
+  }
+
+  await prisma.geofenceZone.create({
+    data: {
+      name,
+      organizationId,
+      clientId,
+      projectId,
+      latitude,
+      longitude,
+      radiusMeters: Math.round(radiusMeters),
+    },
+  });
+
+  revalidatePath("/field/geofences");
+  revalidatePath("/field");
+  return { success: true };
+}
+
 export async function checkIn(
   _prevState: FormActionState,
   formData: FormData

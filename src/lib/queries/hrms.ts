@@ -181,6 +181,22 @@ export async function getPayrollRecords(organizationId: string) {
   });
 }
 
+// Payroll generation silently skips any active employee with no salary
+// structure — surfaced here so the Payroll page can point HR directly at who
+// still needs one set up, instead of a bare "no salary structure configured"
+// toast with no indication of where to fix it.
+export async function getEmployeesWithoutSalaryStructure(organizationId: string) {
+  return prisma.employee.findMany({
+    where: {
+      organizationId,
+      status: "ACTIVE",
+      salaryStructures: { none: { isActive: true } },
+    },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, employeeCode: true },
+  });
+}
+
 export async function getTimesheets(organizationId: string) {
   return prisma.timesheet.findMany({
     where: { employee: { organizationId } },

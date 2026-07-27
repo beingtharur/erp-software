@@ -183,6 +183,11 @@ export function NewAmcContractSheet({
             </div>
           </div>
 
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="nextServiceDate">First service due (optional)</Label>
+            <Input id="nextServiceDate" name="nextServiceDate" type="date" />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="billingFrequency">Billing frequency (optional)</Label>

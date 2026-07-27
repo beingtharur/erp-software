@@ -63,13 +63,21 @@ function SelectContent({
   sideOffset = 4,
   align = "center",
   alignOffset = 0,
-  alignItemWithTrigger = true,
+  // Defaults to false: aligning the popup to the currently-selected item only
+  // works cleanly when a value is already selected. Every select in this app
+  // that's bound to dynamically-loaded options (clients, employees, projects,
+  // leads, geofences) starts with no value selected, and this positioning
+  // mode has been unreliable for those — the popup could fail to open or
+  // render in the wrong place. Plain anchored-below-trigger positioning
+  // (Base UI's other mode) is simpler and correct for every case here.
+  alignItemWithTrigger = false,
+  positionerClassName,
   ...props
 }: SelectPrimitive.Popup.Props &
   Pick<
     SelectPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset" | "alignItemWithTrigger"
-  >) {
+  > & { positionerClassName?: string }) {
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Positioner
@@ -78,7 +86,7 @@ function SelectContent({
         align={align}
         alignOffset={alignOffset}
         alignItemWithTrigger={alignItemWithTrigger}
-        className="isolate z-50"
+        className={cn("isolate z-50", positionerClassName)}
       >
         <SelectPrimitive.Popup
           data-slot="select-content"

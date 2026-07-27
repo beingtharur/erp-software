@@ -1,7 +1,6 @@
 import {
   getPipelineLeads,
   getClientOptions,
-  getSalesReps,
   getProjectOptionsByClient,
   getAssignableEmployees,
 } from "@/lib/queries/crm";
@@ -12,10 +11,9 @@ import { NewLeadSheet } from "@/components/crm/new-lead-sheet";
 export default async function PipelinePage() {
   const user = await getCurrentUser();
   const organizationId = user.organizationId!;
-  const [leads, clients, salesReps, projects, employees] = await Promise.all([
+  const [leads, clients, projects, employees] = await Promise.all([
     getPipelineLeads(organizationId),
     getClientOptions(organizationId),
-    getSalesReps(organizationId),
     getProjectOptionsByClient(organizationId),
     getAssignableEmployees(organizationId),
   ]);
@@ -25,7 +23,12 @@ export default async function PipelinePage() {
       <div className="flex justify-end">
         <NewLeadSheet
           clients={clients}
-          salesReps={salesReps}
+          // Owner was previously restricted to SALES_REP-only employees,
+          // which left a freshly registered org (no employees yet, or none
+          // tagged SALES_REP) with an empty, seemingly "broken" select. The
+          // create-lead action never actually enforces that the owner be a
+          // sales rep, so any active employee is a valid owner.
+          salesReps={employees}
           isAdmin={user.accessRole === "ADMIN"}
           currentEmployeeId={user.employeeId}
         />

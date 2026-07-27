@@ -84,7 +84,10 @@ export async function createVendor(
       contactEmail,
       contactPhone,
       city,
-      rating: 4.0,
+      // Previously hardcoded to 4.0 with no basis — a brand-new vendor hasn't
+      // been rated yet. 0 displays as unrated (all stars empty); the first
+      // real rating is set via VendorRatingControl on the detail page.
+      rating: 0,
       status: "Active",
       organizationId,
     },

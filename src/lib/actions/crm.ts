@@ -969,6 +969,7 @@ export async function createAmcContract(
   const responseTime = String(formData.get("responseTime") ?? "").trim();
   const billingFrequency = String(formData.get("billingFrequency") ?? "");
   const renewalReminderDays = Number(formData.get("renewalReminderDays"));
+  const nextServiceDate = String(formData.get("nextServiceDate") ?? "");
   const notes = String(formData.get("notes") ?? "").trim();
 
   if (!clientId || !equipmentCovered || !startDate || !endDate) {
@@ -1019,6 +1020,10 @@ export async function createAmcContract(
         billingFrequency: billingFrequency ? (billingFrequency as never) : null,
         renewalReminderDays:
           Number.isFinite(renewalReminderDays) && renewalReminderDays > 0 ? renewalReminderDays : null,
+        // Previously always null until someone recorded a service — letting
+        // it be set at creation means a new contract can show a real "Next
+        // Service" date on day one instead of "—" forever.
+        nextServiceDate: nextServiceDate ? new Date(nextServiceDate) : null,
         notes: notes || null,
       },
     });
@@ -1039,4 +1044,37 @@ export async function createAmcContract(
   revalidatePath("/crm");
   revalidatePath("/");
   return { success: true };
+}
+
+// Previously there was no way to ever record a completed service visit —
+// lastServiceDate/nextServiceDate could only ever be set once, at creation
+// (see the nextServiceDate field above), and then stayed frozen forever.
+export async function recordAmcService(
+  contractId: string,
+  serviceDate: string,
+  nextServiceDate: string
+) {
+  await requireRole(["ADMIN", "SALES"]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const parsedServiceDate = new Date(serviceDate);
+  if (Number.isNaN(parsedServiceDate.getTime())) {
+    throw new Error("Enter a valid service date.");
+  }
+  const parsedNextServiceDate = nextServiceDate ? new Date(nextServiceDate) : null;
+  if (nextServiceDate && Number.isNaN(parsedNextServiceDate!.getTime())) {
+    throw new Error("Enter a valid next-service date.");
+  }
+
+  const result = await prisma.amcContract.updateMany({
+    where: { id: contractId, client: { organizationId } },
+    data: { lastServiceDate: parsedServiceDate, nextServiceDate: parsedNextServiceDate },
+  });
+  if (result.count === 0) {
+    throw new Error("AMC contract not found");
+  }
+
+  revalidatePath("/crm/amc");
+  revalidatePath("/");
 }

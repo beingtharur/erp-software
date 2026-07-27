@@ -23,7 +23,13 @@ const geoStatusLabel: Record<GeoStatus, string> = {
   locating: "Getting your location…",
   ready: "Using your device's GPS location",
   unavailable: "Location unavailable — will use the site's approximate location",
-  denied: "Location permission denied — enable it in your browser's site settings, then retry",
+  // Once a site is blocked, no webpage can re-open the permission prompt —
+  // that's a browser security restriction, not a bug here. The one thing we
+  // *can* do is watch for the permission changing (via the Permissions API)
+  // and pick it up automatically the moment the person flips it back on, so
+  // they don't have to reload the page after fixing it in settings.
+  denied:
+    "Location permission blocked. Click the lock/site-info icon in your address bar → Location → Allow. This page will pick it up automatically once you do.",
   timeout: "Location timed out — tap retry, ideally with a clearer view of the sky",
   insecure: "This page isn't loaded securely (HTTPS) — browsers block location on insecure connections",
 };
@@ -83,6 +89,44 @@ export function MyFieldStatus({
     if (activeVisit) return;
     // Deferred a tick so the "unavailable" setState below isn't synchronous-in-effect.
     queueMicrotask(requestLocation);
+  }, [activeVisit, requestLocation]);
+
+  // A webpage can never re-open the permission prompt once the person has
+  // blocked it — only the browser's own site settings can undo that. The
+  // Permissions API at least lets us notice the moment they do, so location
+  // resumes on its own instead of requiring a manual retry + page reload.
+  useEffect(() => {
+    if (activeVisit) return;
+    if (typeof navigator === "undefined" || !("permissions" in navigator)) return;
+
+    let status: PermissionStatus | null = null;
+    let cancelled = false;
+
+    const handleChange = () => {
+      if (!status) return;
+      if (status.state === "granted" || status.state === "prompt") {
+        requestLocation();
+      } else if (status.state === "denied") {
+        setGeoStatus("denied");
+      }
+    };
+
+    navigator.permissions
+      .query({ name: "geolocation" as PermissionName })
+      .then((result) => {
+        if (cancelled) return;
+        status = result;
+        status.addEventListener("change", handleChange);
+      })
+      .catch(() => {
+        // Permissions API not supported for geolocation in this browser
+        // (e.g. older Safari) — the manual retry link is still available.
+      });
+
+    return () => {
+      cancelled = true;
+      status?.removeEventListener("change", handleChange);
+    };
   }, [activeVisit, requestLocation]);
 
   // While checked in, periodically record a real device fix so the visit has
@@ -168,7 +212,11 @@ export function MyFieldStatus({
                   {(value: unknown) => geofences.find((g) => g.id === value)?.name ?? "Select site"}
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent>
+              {/* This page also renders the Leaflet live map, whose panes/controls
+                  use z-index values that can exceed the Select's default z-50,
+                  making the popup render behind the map. Push it well above
+                  Leaflet's stacking range. */}
+              <SelectContent className="z-[5000]" positionerClassName="z-[5000]">
                 {geofences.map((g) => (
                   <SelectItem key={g.id} value={g.id}>
                     {g.name}

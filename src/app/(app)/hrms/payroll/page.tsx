@@ -1,4 +1,5 @@
-import { getPayrollRecords } from "@/lib/queries/hrms";
+import Link from "next/link";
+import { getPayrollRecords, getEmployeesWithoutSalaryStructure } from "@/lib/queries/hrms";
 import { getCurrentUser } from "@/lib/dal";
 import {
   Table,
@@ -19,11 +20,38 @@ const monthLabel = (month: number, year: number) =>
 
 export default async function PayrollPage() {
   const user = await getCurrentUser();
-  const records = await getPayrollRecords(user.organizationId!);
+  const organizationId = user.organizationId!;
+  const [records, employeesMissingSalary] = await Promise.all([
+    getPayrollRecords(organizationId),
+    getEmployeesWithoutSalaryStructure(organizationId),
+  ]);
   const isAdmin = user.accessRole === "ADMIN";
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4">
+      {employeesMissingSalary.length > 0 && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
+          <p className="font-medium">
+            {employeesMissingSalary.length} active employee
+            {employeesMissingSalary.length === 1 ? "" : "s"} without a salary structure
+          </p>
+          <p className="mt-0.5 text-muted-foreground">
+            Payroll skips anyone without one set up. Open their profile and use{" "}
+            <span className="font-medium">Set Up Salary</span> under Salary Structure:
+          </p>
+          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+            {employeesMissingSalary.map((e) => (
+              <Link
+                key={e.id}
+                href={`/hrms/employees/${e.id}`}
+                className="text-primary hover:underline"
+              >
+                {e.name} ({e.employeeCode})
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="flex justify-end">
         <GeneratePayrollButton />
       </div>

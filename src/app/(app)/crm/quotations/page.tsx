@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getQuotations, getClientOptions } from "@/lib/queries/crm";
+import { getQuotations, getClientOptions, getLeadOptionsByClient } from "@/lib/queries/crm";
 import { getCurrentUser } from "@/lib/dal";
 import {
   Table,
@@ -16,15 +16,16 @@ import { NewQuotationSheet } from "@/components/crm/new-quotation-sheet";
 export default async function QuotationsPage() {
   const user = await getCurrentUser();
   const organizationId = user.organizationId!;
-  const [quotations, clients] = await Promise.all([
+  const [quotations, clients, leads] = await Promise.all([
     getQuotations(organizationId),
     getClientOptions(organizationId),
+    getLeadOptionsByClient(organizationId),
   ]);
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4">
       <div className="flex justify-end">
-        <NewQuotationSheet clients={clients} />
+        <NewQuotationSheet clients={clients} leads={leads} />
       </div>
       <div className="rounded-lg border">
       <Table>

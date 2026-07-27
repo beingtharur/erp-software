@@ -1,4 +1,5 @@
 import { getGeofences } from "@/lib/queries/field";
+import { getClientOptions, getProjectOptionsByClient } from "@/lib/queries/crm";
 import { getCurrentUser } from "@/lib/dal";
 import {
   Table,
@@ -8,13 +9,25 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { NewGeofenceSheet } from "@/components/field/new-geofence-sheet";
 
 export default async function GeofencesPage() {
   const user = await getCurrentUser();
-  const geofences = await getGeofences(user.organizationId!);
+  const organizationId = user.organizationId!;
+  const [geofences, clients, projects] = await Promise.all([
+    getGeofences(organizationId),
+    getClientOptions(organizationId),
+    getProjectOptionsByClient(organizationId),
+  ]);
 
   return (
-    <div className="rounded-lg border">
+    <div className="flex flex-col gap-4">
+      {user.accessRole === "ADMIN" && (
+        <div className="flex justify-end">
+          <NewGeofenceSheet clients={clients} projects={projects} />
+        </div>
+      )}
+      <div className="rounded-lg border">
       <Table>
         <TableHeader>
           <TableRow>
@@ -26,6 +39,13 @@ export default async function GeofencesPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
+          {geofences.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                No sites yet.
+              </TableCell>
+            </TableRow>
+          )}
           {geofences.map((g) => (
             <TableRow key={g.id}>
               <TableCell className="font-medium">{g.name}</TableCell>
@@ -41,6 +61,7 @@ export default async function GeofencesPage() {
           ))}
         </TableBody>
       </Table>
+      </div>
     </div>
   );
 }

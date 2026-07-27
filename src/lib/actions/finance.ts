@@ -30,6 +30,15 @@ export async function createExpenseClaim(
   if (!Number.isFinite(amount) || amount <= 0) {
     return { error: "Enter a valid amount." };
   }
+  const parsedExpenseDate = new Date(expenseDate);
+  if (Number.isNaN(parsedExpenseDate.getTime())) {
+    return { error: "Enter a valid expense date." };
+  }
+  // The date input's `max` attribute stops this in the browser, but that's
+  // trivially bypassed — enforce it server-side too.
+  if (parsedExpenseDate.getTime() > Date.now()) {
+    return { error: "Expense date can't be in the future." };
+  }
 
   // claimNumber is globally unique (not scoped per organization), so the
   // count driving it must be global too; retry on collision (see sequence.ts).

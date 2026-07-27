@@ -83,7 +83,7 @@ export function NewLeadSheet({
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="clientId">Client</Label>
-            <Select name="clientId" required>
+            <Select name="clientId" required disabled={clients.length === 0}>
               <SelectTrigger id="clientId" className="w-full">
                 <SelectValue placeholder="Select client">
                   {(value: unknown) => clients.find((c) => c.id === value)?.name ?? "Select client"}
@@ -97,6 +97,11 @@ export function NewLeadSheet({
                 ))}
               </SelectContent>
             </Select>
+            {clients.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                No clients yet — add one on the Clients tab first.
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -161,7 +166,12 @@ export function NewLeadSheet({
           {isAdmin ? (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="ownerId">Owner</Label>
-              <Select name="ownerId" required defaultValue={currentEmployeeId ?? undefined}>
+              <Select
+                name="ownerId"
+                required
+                disabled={salesReps.length === 0}
+                defaultValue={currentEmployeeId ?? undefined}
+              >
                 <SelectTrigger id="ownerId" className="w-full">
                   <SelectValue placeholder="Select owner">
                     {(value: unknown) => salesReps.find((s) => s.id === value)?.name ?? "Select owner"}
@@ -175,6 +185,11 @@ export function NewLeadSheet({
                   ))}
                 </SelectContent>
               </Select>
+              {salesReps.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No employees yet — add one under HRMS → Employees first.
+                </p>
+              )}
             </div>
           ) : (
             <input type="hidden" name="ownerId" value={currentEmployeeId ?? ""} />

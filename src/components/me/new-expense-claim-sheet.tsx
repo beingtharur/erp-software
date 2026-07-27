@@ -35,6 +35,10 @@ const CATEGORY_LABEL: Record<string, string> = {
   OTHER: "Other",
 };
 
+function toDateInputValue(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
 export function NewExpenseClaimSheet() {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createExpenseClaim, undefined);
@@ -85,7 +89,13 @@ export function NewExpenseClaimSheet() {
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="expenseDate">Expense date</Label>
-            <Input id="expenseDate" name="expenseDate" type="date" required />
+            <Input
+              id="expenseDate"
+              name="expenseDate"
+              type="date"
+              max={toDateInputValue(new Date())}
+              required
+            />
           </div>
 
           <div className="flex flex-col gap-1.5">

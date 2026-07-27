@@ -39,11 +39,13 @@ function emptyRow(key: string): LineItemRow {
 
 export function NewQuotationSheet({
   clients,
+  leads = [],
   initialValues,
   open: openProp,
   onOpenChange: onOpenChangeProp,
 }: {
   clients: { id: string; name: string }[];
+  leads?: { id: string; title: string; clientId: string }[];
   initialValues?: { leadId?: string; clientId?: string };
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -56,6 +58,11 @@ export function NewQuotationSheet({
   const idPrefix = useId();
   const [rows, setRows] = useState<LineItemRow[]>([emptyRow(`${idPrefix}-0`)]);
   const lockedClient = clients.find((c) => c.id === initialValues?.clientId);
+  // Only relevant on the standalone creation path — when opened from a Lead
+  // card (initialValues.leadId set), the lead is already locked via the
+  // hidden input below and this picker never renders.
+  const [clientId, setClientId] = useState<string | undefined>(initialValues?.clientId);
+  const relevantLeads = leads.filter((l) => l.clientId === clientId);
 
   useEffect(() => {
     if (state?.success) {
@@ -113,7 +120,11 @@ export function NewQuotationSheet({
             ) : (
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="clientId">Client</Label>
-                <Select name="clientId" required>
+                <Select
+                  name="clientId"
+                  required
+                  onValueChange={(value) => setClientId((value as string) ?? undefined)}
+                >
                   <SelectTrigger id="clientId" className="w-full">
                     <SelectValue placeholder="Select client">
                       {(value: unknown) => clients.find((c) => c.id === value)?.name ?? "Select client"}
@@ -134,6 +145,34 @@ export function NewQuotationSheet({
               <Input id="validUntil" name="validUntil" type="date" required />
             </div>
           </div>
+
+          {!initialValues?.leadId && (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="leadId">Related lead (optional)</Label>
+              <Select key={clientId} name="leadId" disabled={!clientId || relevantLeads.length === 0}>
+                <SelectTrigger id="leadId" className="w-full">
+                  <SelectValue
+                    placeholder={
+                      !clientId
+                        ? "Select a client first"
+                        : relevantLeads.length === 0
+                          ? "No leads for this client"
+                          : "None"
+                    }
+                  >
+                    {(value: unknown) => relevantLeads.find((l) => l.id === value)?.title ?? "None"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {relevantLeads.map((l) => (
+                    <SelectItem key={l.id} value={l.id}>
+                      {l.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">

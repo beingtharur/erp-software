@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { NewAmcContractSheet } from "@/components/crm/new-amc-contract-sheet";
+import { RecordAmcServiceButton } from "@/components/crm/record-amc-service-button";
 import { formatDate, formatINR, titleCase } from "@/lib/format";
 
 const badgeVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -44,12 +45,13 @@ export default async function AmcPage() {
               <TableHead>Next Service</TableHead>
               <TableHead>Expires</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="text-right">Service</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {contracts.length === 0 && (
               <TableRow>
-                <TableCell colSpan={9} className="text-center text-sm text-muted-foreground">
+                <TableCell colSpan={10} className="text-center text-sm text-muted-foreground">
                   No AMC contracts yet.
                 </TableCell>
               </TableRow>
@@ -81,6 +83,9 @@ export default async function AmcPage() {
                   <Badge variant={badgeVariant[c.status]} className="font-normal">
                     {titleCase(c.status)}
                   </Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  <RecordAmcServiceButton contractId={c.id} />
                 </TableCell>
               </TableRow>
             ))}

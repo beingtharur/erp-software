@@ -31,10 +31,13 @@ export function GeneratePayrollButton() {
         const result = await generatePayroll(Number(month), Number(year));
         if (result.created > 0) {
           toast.success(`Generated payroll for ${result.created} employee${result.created === 1 ? "" : "s"}`);
-        } else if (result.skippedExisting > 0) {
-          toast.error("Payroll for this period already exists.");
-        } else {
-          toast.error("No employees have an active salary structure configured.");
+        }
+        if (result.skippedNoSalaryStructure > 0) {
+          toast.error(
+            `${result.skippedNoSalaryStructure} employee${result.skippedNoSalaryStructure === 1 ? "" : "s"} skipped — no salary structure set up (see the notice above).`
+          );
+        } else if (result.created === 0 && result.skippedExisting > 0) {
+          toast.error("Payroll for this period already exists for every active employee.");
         }
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Could not generate payroll");
