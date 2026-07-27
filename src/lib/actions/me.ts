@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/dal";
+import { notifyRole } from "@/lib/notify";
+import { titleCase } from "@/lib/format";
 import type { FormActionState } from "@/lib/actions/crm";
 
 function todayMidnight() {
@@ -109,6 +111,19 @@ export async function applyLeave(
       status: "PENDING",
     },
   });
+
+  // Previously HR/Admin only discovered a pending leave request by visiting
+  // /hrms/leave — every other approval-style flow (expense claims, budgets,
+  // POs) notifies the deciding role at submission time. Match that here.
+  const employee = await prisma.employee.findUnique({ where: { id: user.employeeId } });
+  if (employee) {
+    await notifyRole(
+      "HR",
+      employee.organizationId,
+      `${employee.name} applied for ${titleCase(type)} leave (${days} day${days === 1 ? "" : "s"}).`,
+      "/hrms/leave"
+    );
+  }
 
   revalidatePath("/me");
   revalidatePath("/hrms/leave");
@@ -277,6 +292,9 @@ export async function logTimesheet(
   const date = String(formData.get("date") ?? "");
   const hoursLogged = Number(formData.get("hoursLogged"));
   const taskDescription = String(formData.get("taskDescription") ?? "").trim();
+  // Previously hardcoded to true with no UI control — billable is now a real
+  // checkbox on the form (checkboxes only appear in FormData when checked).
+  const billable = formData.get("billable") === "on";
 
   if (!date || !taskDescription || !Number.isFinite(hoursLogged) || hoursLogged <= 0) {
     return { error: "Please fill in all fields with a valid number of hours." };
@@ -296,7 +314,7 @@ export async function logTimesheet(
       date: new Date(date),
       hoursLogged,
       taskDescription,
-      billable: true,
+      billable,
     },
   });
 

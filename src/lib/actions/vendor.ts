@@ -6,6 +6,8 @@ import { requireRole, getCurrentUser } from "@/lib/dal";
 import { notifyRole } from "@/lib/notify";
 import { formatINR } from "@/lib/format";
 import { requestApproval } from "@/lib/approvals";
+import { withUniqueCodeRetry } from "@/lib/sequence";
+import { PO_STATUS_TRANSITIONS, isValidTransition, type PoStatus } from "@/lib/status-transitions";
 import type { FormActionState } from "@/lib/actions/crm";
 
 export async function markPaymentPaid(paymentId: string, method: string) {
@@ -139,20 +141,21 @@ export async function createPurchaseOrder(
   }
 
   // poNumber is globally unique (not scoped per organization), so the count
-  // driving it must be global too.
-  const count = await prisma.purchaseOrder.count();
-  const poNumber = `PO-${7000 + count + 1}`;
-
-  const po = await prisma.purchaseOrder.create({
-    data: {
-      poNumber,
-      vendorId,
-      itemsDescription,
-      amount,
-      orderDate: new Date(orderDate),
-      expectedDelivery: new Date(expectedDelivery),
-      status: "DRAFT",
-    },
+  // driving it must be global too; retry on collision (see sequence.ts).
+  const po = await withUniqueCodeRetry(async () => {
+    const count = await prisma.purchaseOrder.count();
+    const poNumber = `PO-${7000 + count + 1}`;
+    return prisma.purchaseOrder.create({
+      data: {
+        poNumber,
+        vendorId,
+        itemsDescription,
+        amount,
+        orderDate: new Date(orderDate),
+        expectedDelivery: new Date(expectedDelivery),
+        status: "DRAFT",
+      },
+    });
   });
 
   if (requester.employeeId) {
@@ -167,7 +170,7 @@ export async function createPurchaseOrder(
   await notifyRole(
     "ADMIN",
     organizationId,
-    `New purchase order ${poNumber} for ${vendor.name} (${formatINR(amount)}) is awaiting your approval.`,
+    `New purchase order ${po.poNumber} for ${vendor.name} (${formatINR(amount)}) is awaiting your approval.`,
     "/approvals"
   );
 
@@ -208,6 +211,17 @@ export async function updatePurchaseOrder(
   const vendor = await prisma.vendor.findFirst({ where: { id: vendorId, organizationId } });
   if (!vendor) {
     return { error: "Vendor not found." };
+  }
+
+  // The edit form's status field is currently always resubmitted unchanged
+  // (there's no status picker in the UI), but validate it defensively anyway —
+  // this is the only thing standing between a crafted request and an illegal
+  // jump like DRAFT -> DELIVERED.
+  if (
+    status !== existing.status &&
+    !isValidTransition(PO_STATUS_TRANSITIONS, existing.status as PoStatus, status as PoStatus)
+  ) {
+    return { error: `Can't move a purchase order from ${existing.status} directly to ${status}.` };
   }
 
   await prisma.purchaseOrder.update({
@@ -268,24 +282,27 @@ export async function duplicatePurchaseOrder(poId: string) {
     throw new Error("Purchase order not found");
   }
 
-  // poNumber is globally unique (not scoped per organization), so the count
-  // driving it must be global too — see the identical comment in createPurchaseOrder.
-  const count = await prisma.purchaseOrder.count();
-  const poNumber = `PO-${7000 + count + 1}`;
   const orderDate = new Date();
   const leadTimeMs = source.expectedDelivery.getTime() - source.orderDate.getTime();
   const expectedDelivery = new Date(orderDate.getTime() + Math.max(leadTimeMs, 0));
 
-  const po = await prisma.purchaseOrder.create({
-    data: {
-      poNumber,
-      vendorId: source.vendorId,
-      itemsDescription: source.itemsDescription,
-      amount: source.amount,
-      orderDate,
-      expectedDelivery,
-      status: "DRAFT",
-    },
+  // poNumber is globally unique (not scoped per organization), so the count
+  // driving it must be global too — see the identical comment in
+  // createPurchaseOrder; retry on collision (see sequence.ts).
+  const po = await withUniqueCodeRetry(async () => {
+    const count = await prisma.purchaseOrder.count();
+    const poNumber = `PO-${7000 + count + 1}`;
+    return prisma.purchaseOrder.create({
+      data: {
+        poNumber,
+        vendorId: source.vendorId,
+        itemsDescription: source.itemsDescription,
+        amount: source.amount,
+        orderDate,
+        expectedDelivery,
+        status: "DRAFT",
+      },
+    });
   });
 
   if (user.employeeId) {
@@ -300,7 +317,7 @@ export async function duplicatePurchaseOrder(poId: string) {
   await notifyRole(
     "ADMIN",
     organizationId,
-    `Reordered purchase order ${poNumber} for ${source.vendor.name} (${formatINR(source.amount)}) is awaiting your approval.`,
+    `Reordered purchase order ${po.poNumber} for ${source.vendor.name} (${formatINR(source.amount)}) is awaiting your approval.`,
     "/approvals"
   );
 

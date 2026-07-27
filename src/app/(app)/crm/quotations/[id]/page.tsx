@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/dal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { QuotationStatusMenu } from "@/components/crm/quotation-status-menu";
+import { ReviseQuotationButton } from "@/components/crm/revise-quotation-button";
 import { ConvertToProjectSheet } from "@/components/crm/convert-to-project-sheet";
 import { formatDate, formatINR } from "@/lib/format";
 import { FileText, HardHat } from "lucide-react";
@@ -32,6 +33,7 @@ export default async function QuotationDetailPage({
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-semibold">{quotation.quoteNumber}</h2>
                 <QuotationStatusMenu quotationId={quotation.id} status={quotation.status} />
+                <ReviseQuotationButton quotationId={quotation.id} status={quotation.status} />
               </div>
               <p className="text-sm text-muted-foreground">
                 <Link href={`/crm/clients/${quotation.clientId}`} className="hover:underline">

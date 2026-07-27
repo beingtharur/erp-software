@@ -28,6 +28,7 @@ export function ProjectTaskRow({
     startTransition(async () => {
       try {
         await updateProjectTaskStatus(task.id, status);
+        toast.success(`Task marked ${status === "IN_PROGRESS" ? "In Progress" : status === "DONE" ? "Done" : "To Do"}`);
       } catch {
         toast.error("Could not update task");
       }

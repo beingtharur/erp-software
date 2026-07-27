@@ -5,9 +5,12 @@ import { prisma } from "@/lib/db";
 import { requireRole, getCurrentUser } from "@/lib/dal";
 import { hashPassword } from "@/lib/password";
 import { notifyUser } from "@/lib/notify";
-import { roleSectionAccess } from "@/lib/nav";
+import { roleSectionAccess, navSections } from "@/lib/nav";
+import { withUniqueCodeRetry } from "@/lib/sequence";
 import type { FormActionState } from "@/lib/actions/crm";
 import type { AccessRole } from "@/generated/prisma/client";
+
+const ALL_MODULE_KEYS = navSections.map((s) => s.key);
 
 class LicenceLimitError extends Error {
   constructor(public licencedUsers: number) {
@@ -55,23 +58,25 @@ export async function createUserForEmployee(
     }
 
     // employeeCode is globally unique (not scoped per organization) - see the
-    // same fix in actions/hrms.ts::createEmployee.
-    const count = await prisma.employee.count();
-    const employeeCode = `EOS-${String(count + 1).padStart(3, "0")}`;
-
-    employee = await prisma.employee.create({
-      data: {
-        employeeCode,
-        name,
-        role: role as never,
-        department,
-        email,
-        phone,
-        dateOfJoining: new Date(dateOfJoining),
-        baseLocation,
-        avatarSeed: employeeCode,
-        organizationId,
-      },
+    // same fix in actions/hrms.ts::createEmployee. Retry on collision (see
+    // sequence.ts) since count-then-insert isn't atomic.
+    employee = await withUniqueCodeRetry(async () => {
+      const count = await prisma.employee.count();
+      const employeeCode = `EOS-${String(count + 1).padStart(3, "0")}`;
+      return prisma.employee.create({
+        data: {
+          employeeCode,
+          name,
+          role: role as never,
+          department,
+          email,
+          phone,
+          dateOfJoining: new Date(dateOfJoining),
+          baseLocation,
+          avatarSeed: employeeCode,
+          organizationId,
+        },
+      });
     });
   } else {
     const employeeId = String(formData.get("employeeId") ?? "");
@@ -187,15 +192,24 @@ export async function updateUser(
     data: { email, accessRole: accessRole as AccessRole, ...passwordFields },
   });
 
-  // Module access is additive on top of role defaults — grant the new role's
-  // defaults without touching any extra modules an admin granted beyond that.
-  for (const moduleKey of roleSectionAccess[accessRole as AccessRole]) {
-    await prisma.userModuleAccess.upsert({
-      where: { userId_module: { userId, module: moduleKey } },
-      create: { userId, module: moduleKey },
-      update: {},
-    });
-  }
+  // This form is the one place an admin explicitly controls module access —
+  // unlike the quick role-switch dropdown (updateUserRole), which stays
+  // additive-only, here the submitted checkbox set is the real desired state:
+  // grant what's checked, revoke what isn't. This is what makes module access
+  // actually revocable instead of purely additive forever.
+  const selectedModules = new Set(formData.getAll("modules").map(String));
+  await prisma.$transaction([
+    prisma.userModuleAccess.deleteMany({
+      where: { userId, module: { in: ALL_MODULE_KEYS.filter((m) => !selectedModules.has(m)) } },
+    }),
+    ...[...selectedModules].map((moduleKey) =>
+      prisma.userModuleAccess.upsert({
+        where: { userId_module: { userId, module: moduleKey } },
+        create: { userId, module: moduleKey },
+        update: {},
+      })
+    ),
+  ]);
 
   revalidatePath("/admin/users");
   return { success: true };

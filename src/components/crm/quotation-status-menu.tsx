@@ -12,9 +12,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { titleCase } from "@/lib/format";
 import { updateQuotationStatus } from "@/lib/actions/crm";
+import { QUOTATION_STATUS_TRANSITIONS, nextStatuses, type QuotationStatus } from "@/lib/status-transitions";
 import { cn } from "@/lib/utils";
-
-const STATUSES = ["DRAFT", "SENT", "UNDER_REVIEW", "APPROVED", "REJECTED"] as const;
 
 const badgeVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   DRAFT: "outline",
@@ -33,7 +32,7 @@ export function QuotationStatusMenu({
 }) {
   const [isPending, startTransition] = useTransition();
 
-  function handleChange(next: (typeof STATUSES)[number]) {
+  function handleChange(next: QuotationStatus) {
     startTransition(async () => {
       try {
         await updateQuotationStatus(quotationId, next);
@@ -56,7 +55,7 @@ export function QuotationStatusMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuGroup>
-          {STATUSES.filter((s) => s !== status).map((s) => (
+          {nextStatuses(QUOTATION_STATUS_TRANSITIONS, status as QuotationStatus).map((s) => (
             <DropdownMenuItem key={s} onClick={() => handleChange(s)}>
               Mark {titleCase(s)}
             </DropdownMenuItem>

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Sheet,
   SheetContent,
@@ -32,6 +33,7 @@ export function LogTimesheetSheet({
   projects: { id: string; name: string }[];
 }) {
   const [open, setOpen] = useState(false);
+  const [billable, setBillable] = useState(true);
   const [state, formAction, pending] = useActionState(logTimesheet, undefined);
 
   useEffect(() => {
@@ -99,6 +101,18 @@ export function LogTimesheetSheet({
               rows={3}
               required
             />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="billable"
+              checked={billable}
+              onCheckedChange={(checked) => setBillable(checked === true)}
+            />
+            <input type="hidden" name="billable" value={billable ? "on" : ""} />
+            <Label htmlFor="billable" className="font-normal">
+              Billable to client
+            </Label>
           </div>
 
           {state?.error && <p className="text-sm text-destructive">{state.error}</p>}

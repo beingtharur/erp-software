@@ -87,6 +87,7 @@ export default async function AdminUsersPage() {
                           email: user.email,
                           accessRole: user.accessRole,
                           employeeName: user.employee?.name ?? null,
+                          modules: user.moduleAccess.map((m) => m.module),
                         }}
                       />
                       {user.id !== currentUser.id && <RevokeAccessButton userId={user.id} />}

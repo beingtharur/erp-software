@@ -9,6 +9,7 @@ import { calculateNetPay, calculateSalaryComponents } from "@/lib/payroll";
 import { saveFile, deleteFile } from "@/lib/storage";
 import { hashPassword } from "@/lib/password";
 import { roleSectionAccess } from "@/lib/nav";
+import { withUniqueCodeRetry } from "@/lib/sequence";
 import type { FormActionState } from "@/lib/actions/crm";
 import type { AccessRole } from "@/generated/prisma/client";
 
@@ -281,55 +282,60 @@ export async function createEmployee(
     return { error: "A login already exists with this email." };
   }
 
-  // employeeCode is globally unique (not scoped per organization), so the
-  // count driving it must be global too — an org-scoped count would collide
-  // with another organization's employees the moment both start from zero.
-  const count = await prisma.employee.count();
-  const employeeCode = `EOS-${String(count + 1).padStart(3, "0")}`;
   const { hash, salt } = hashPassword(DEFAULT_TEMP_PASSWORD);
 
   try {
-    await prisma.$transaction(async (tx) => {
-      const employee = await tx.employee.create({
-        data: {
-          employeeCode,
-          name,
-          role: role as never,
-          department,
-          email,
-          phone,
-          dateOfJoining: new Date(dateOfJoining),
-          baseLocation,
-          avatarSeed: employeeCode,
-          organizationId,
-        },
-      });
+    // employeeCode is globally unique (not scoped per organization), so the
+    // count driving it must be global too — an org-scoped count would collide
+    // with another organization's employees the moment both start from zero.
+    // The count-then-insert isn't atomic, so retry on a unique-constraint
+    // collision (see sequence.ts) instead of crashing.
+    await withUniqueCodeRetry(() =>
+      prisma.$transaction(async (tx) => {
+        const count = await tx.employee.count();
+        const employeeCode = `EOS-${String(count + 1).padStart(3, "0")}`;
 
-      await tx.user.create({
-        data: {
-          email,
-          passwordHash: hash,
-          passwordSalt: salt,
-          accessRole: accessRole as AccessRole,
-          employeeId: employee.id,
-          organizationId,
-          moduleAccess: {
-            create: roleSectionAccess[accessRole as AccessRole].map((module) => ({ module })),
+        const employee = await tx.employee.create({
+          data: {
+            employeeCode,
+            name,
+            role: role as never,
+            department,
+            email,
+            phone,
+            dateOfJoining: new Date(dateOfJoining),
+            baseLocation,
+            avatarSeed: employeeCode,
+            organizationId,
           },
-        },
-      });
+        });
 
-      // Re-check the licence count *after* the insert, inside the same
-      // transaction — see the identical guard in actions/admin.ts::createUserForEmployee.
-      const subscription = await tx.subscription.findUnique({ where: { organizationId } });
-      const licencedUsers = subscription?.licencedUsers ?? 0;
-      const currentUserCount = await tx.user.count({ where: { organizationId } });
-      if (currentUserCount > licencedUsers) {
-        throw new LicenceLimitError(licencedUsers);
-      }
+        await tx.user.create({
+          data: {
+            email,
+            passwordHash: hash,
+            passwordSalt: salt,
+            accessRole: accessRole as AccessRole,
+            employeeId: employee.id,
+            organizationId,
+            moduleAccess: {
+              create: roleSectionAccess[accessRole as AccessRole].map((module) => ({ module })),
+            },
+          },
+        });
 
-      return employee;
-    });
+        // Re-check the licence count *after* the insert, inside the same
+        // transaction — see the identical guard in actions/admin.ts::createUserForEmployee.
+        const subscription = await tx.subscription.findUnique({ where: { organizationId } });
+        const licencedUsers = subscription?.licencedUsers ?? 0;
+        const currentUserCount = await tx.user.count({ where: { organizationId } });
+        if (currentUserCount > licencedUsers) {
+          throw new LicenceLimitError(licencedUsers);
+        }
+
+        return employee;
+      })
+    );
   } catch (err) {
     if (err instanceof LicenceLimitError) {
       return {
@@ -391,22 +397,23 @@ export async function createSelfEmployeeProfile(
     return { success: true };
   }
 
-  const count = await prisma.employee.count();
-  const employeeCode = `EOS-${String(count + 1).padStart(3, "0")}`;
-
-  const employee = await prisma.employee.create({
-    data: {
-      employeeCode,
-      name,
-      role: role as never,
-      department,
-      email: user.email,
-      phone,
-      dateOfJoining: new Date(dateOfJoining),
-      baseLocation,
-      avatarSeed: employeeCode,
-      organizationId,
-    },
+  const employee = await withUniqueCodeRetry(async () => {
+    const count = await prisma.employee.count();
+    const employeeCode = `EOS-${String(count + 1).padStart(3, "0")}`;
+    return prisma.employee.create({
+      data: {
+        employeeCode,
+        name,
+        role: role as never,
+        department,
+        email: user.email,
+        phone,
+        dateOfJoining: new Date(dateOfJoining),
+        baseLocation,
+        avatarSeed: employeeCode,
+        organizationId,
+      },
+    });
   });
 
   await prisma.user.update({ where: { id: user.id }, data: { employeeId: employee.id } });

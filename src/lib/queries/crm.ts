@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { computeAmcStatus } from "@/lib/amc-status";
 
 export async function getPipelineLeads(organizationId: string) {
   return prisma.lead.findMany({
@@ -35,7 +36,7 @@ export async function getClients(organizationId: string) {
 }
 
 export async function getClientDetail(id: string, organizationId: string) {
-  return prisma.client.findFirst({
+  const client = await prisma.client.findFirst({
     where: { id, organizationId },
     include: {
       leads: { include: { owner: true }, orderBy: { createdAt: "desc" } },
@@ -48,6 +49,15 @@ export async function getClientDetail(id: string, organizationId: string) {
       projects: true,
     },
   });
+  if (!client) return client;
+  // See lib/amc-status.ts — the stored status column is never recomputed.
+  return {
+    ...client,
+    amcContracts: client.amcContracts.map((c) => ({
+      ...c,
+      status: computeAmcStatus(c.endDate, c.renewalReminderDays),
+    })),
+  };
 }
 
 export async function getQuotations(organizationId: string) {
@@ -82,7 +92,7 @@ export async function getProjects(organizationId: string) {
 }
 
 export async function getProjectDetail(id: string, organizationId: string) {
-  return prisma.project.findFirst({
+  const project = await prisma.project.findFirst({
     where: { id, client: { organizationId } },
     include: {
       client: true,
@@ -100,6 +110,15 @@ export async function getProjectDetail(id: string, organizationId: string) {
       },
     },
   });
+  if (!project) return project;
+  // See lib/amc-status.ts — the stored status column is never recomputed.
+  return {
+    ...project,
+    amcContracts: project.amcContracts.map((c) => ({
+      ...c,
+      status: computeAmcStatus(c.endDate, c.renewalReminderDays),
+    })),
+  };
 }
 
 export async function getAssignableEmployees(organizationId: string) {
@@ -133,11 +152,18 @@ export async function getProjectOptionsByClient(organizationId: string) {
 }
 
 export async function getAmcContracts(organizationId: string) {
-  return prisma.amcContract.findMany({
+  const contracts = await prisma.amcContract.findMany({
     where: { client: { organizationId } },
     orderBy: { endDate: "asc" },
     include: { client: true, project: { select: { id: true, name: true } } },
   });
+  // status was a static value set once at seed time and never recomputed —
+  // derive the real status from endDate/renewalReminderDays on every read
+  // instead of trusting the stored column (see lib/amc-status.ts).
+  return contracts.map((c) => ({
+    ...c,
+    status: computeAmcStatus(c.endDate, c.renewalReminderDays),
+  }));
 }
 
 export async function getAmcContractOptions(organizationId: string) {

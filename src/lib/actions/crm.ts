@@ -6,6 +6,16 @@ import { requireRole, getCurrentUser } from "@/lib/dal";
 import { notifyRole, notifyEmployee, notifyEmployeeRole } from "@/lib/notify";
 import { formatINR, formatDate, titleCase } from "@/lib/format";
 import { saveFile } from "@/lib/storage";
+import { withUniqueCodeRetry } from "@/lib/sequence";
+import {
+  LEAD_STAGE_TRANSITIONS,
+  QUOTATION_STATUS_TRANSITIONS,
+  MILESTONE_STATUS_TRANSITIONS,
+  TICKET_STATUS_TRANSITIONS,
+  PROJECT_TASK_STATUS_TRANSITIONS,
+  isValidTransition,
+  type LeadStage,
+} from "@/lib/status-transitions";
 
 export type FormActionState = { error?: string; success?: boolean } | undefined;
 
@@ -17,7 +27,6 @@ const VALID_STAGES = [
   "WON",
   "LOST",
 ] as const;
-type LeadStage = (typeof VALID_STAGES)[number];
 
 export async function createClient(
   _prevState: FormActionState,
@@ -119,12 +128,16 @@ export async function updateLeadStage(leadId: string, stage: LeadStage) {
   if (!VALID_STAGES.includes(stage)) {
     throw new Error("Invalid stage");
   }
+  await requireRole(["ADMIN", "SALES"]);
   const user = await getCurrentUser();
   const organizationId = user.organizationId!;
 
   const existing = await prisma.lead.findFirst({ where: { id: leadId, client: { organizationId } } });
   if (!existing) {
     throw new Error("Lead not found");
+  }
+  if (!isValidTransition(LEAD_STAGE_TRANSITIONS, existing.stage as LeadStage, stage)) {
+    throw new Error(`Can't move a lead from ${existing.stage} directly to ${stage}.`);
   }
 
   const lead = await prisma.lead.update({
@@ -200,28 +213,32 @@ export async function createQuotation(
   }
 
   const amount = lineItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-  // quoteNumber is globally unique (not scoped per organization), so the
-  // count driving it must be global too.
-  const count = await prisma.quotation.count();
-  const quoteNumber = `QT-${1001 + count}`;
 
-  await prisma.quotation.create({
-    data: {
-      quoteNumber,
-      clientId,
-      leadId: validLeadId,
-      amount,
-      validUntil: new Date(validUntil),
-      lineItems: {
-        create: lineItems.map((item, i) => ({
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          amount: item.quantity * item.unitPrice,
-          sortOrder: i,
-        })),
+  // quoteNumber is globally unique (not scoped per organization), so the
+  // count driving it must be global too. The count-then-insert isn't atomic,
+  // so wrap it in a retry: if two requests race and collide on the same
+  // number, recompute a fresh count and try again instead of crashing.
+  await withUniqueCodeRetry(async () => {
+    const count = await prisma.quotation.count();
+    const quoteNumber = `QT-${1001 + count}`;
+    return prisma.quotation.create({
+      data: {
+        quoteNumber,
+        clientId,
+        leadId: validLeadId,
+        amount,
+        validUntil: new Date(validUntil),
+        lineItems: {
+          create: lineItems.map((item, i) => ({
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            amount: item.quantity * item.unitPrice,
+            sortOrder: i,
+          })),
+        },
       },
-    },
+    });
   });
 
   revalidatePath("/crm/quotations");
@@ -233,18 +250,60 @@ export async function updateQuotationStatus(
   quotationId: string,
   status: "DRAFT" | "SENT" | "UNDER_REVIEW" | "APPROVED" | "REJECTED"
 ) {
+  await requireRole(["ADMIN", "SALES"]);
   const user = await getCurrentUser();
   const organizationId = user.organizationId!;
 
-  const result = await prisma.quotation.updateMany({
+  const existing = await prisma.quotation.findFirst({
     where: { id: quotationId, client: { organizationId } },
-    data: { status },
   });
-  if (result.count === 0) {
+  if (!existing) {
     throw new Error("Quotation not found");
   }
+  if (!isValidTransition(QUOTATION_STATUS_TRANSITIONS, existing.status, status)) {
+    throw new Error(`Can't move a quotation from ${existing.status} directly to ${status}.`);
+  }
+
+  await prisma.quotation.update({
+    where: { id: quotationId },
+    data: { status },
+  });
   revalidatePath("/crm/quotations");
   revalidatePath("/");
+}
+
+// Bump a quotation to its next revision — previously `revision` was always 1
+// forever since nothing ever incremented it. Only makes sense once a client
+// has actually responded (SENT/UNDER_REVIEW/REJECTED); revising resets the
+// quote back to DRAFT (and its line items become editable again via
+// UpdateQuotation once that exists) while keeping the same quoteNumber, so
+// "QT-1042 · Revision 2" reflects a real, incrementing history.
+const REVISABLE_STATUSES = ["SENT", "UNDER_REVIEW", "REJECTED"] as const;
+
+export async function reviseQuotation(quotationId: string) {
+  await requireRole(["ADMIN", "SALES"]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const source = await prisma.quotation.findFirst({
+    where: { id: quotationId, client: { organizationId } },
+  });
+  if (!source) {
+    throw new Error("Quotation not found");
+  }
+  if (!REVISABLE_STATUSES.includes(source.status as (typeof REVISABLE_STATUSES)[number])) {
+    throw new Error("Only a sent, under-review, or rejected quotation can be revised.");
+  }
+
+  const updated = await prisma.quotation.update({
+    where: { id: quotationId },
+    data: { revision: { increment: 1 }, status: "DRAFT" },
+  });
+
+  revalidatePath("/crm/quotations");
+  revalidatePath(`/crm/quotations/${quotationId}`);
+  revalidatePath("/");
+  return updated;
 }
 
 export async function convertQuotationToProject(
@@ -641,6 +700,7 @@ export async function updateMilestoneStatus(
   milestoneId: string,
   status: "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "DELAYED"
 ) {
+  await requireRole(["ADMIN", "SALES"]);
   const user = await getCurrentUser();
   const organizationId = user.organizationId!;
 
@@ -649,6 +709,9 @@ export async function updateMilestoneStatus(
   });
   if (!existing) {
     throw new Error("Milestone not found");
+  }
+  if (!isValidTransition(MILESTONE_STATUS_TRANSITIONS, existing.status, status)) {
+    throw new Error(`Can't move a milestone from ${existing.status} directly to ${status}.`);
   }
 
   const milestone = await prisma.milestone.update({
@@ -699,6 +762,7 @@ export async function updateProjectTaskStatus(
   taskId: string,
   status: "TODO" | "IN_PROGRESS" | "DONE"
 ) {
+  await requireRole(["ADMIN", "SALES"]);
   const user = await getCurrentUser();
   const organizationId = user.organizationId!;
 
@@ -707,6 +771,9 @@ export async function updateProjectTaskStatus(
   });
   if (!existing) {
     throw new Error("Task not found");
+  }
+  if (!isValidTransition(PROJECT_TASK_STATUS_TRANSITIONS, existing.status, status)) {
+    throw new Error(`Can't move a task from ${existing.status} directly to ${status}.`);
   }
 
   const task = await prisma.projectTask.update({
@@ -756,21 +823,23 @@ export async function createTicket(
     return { error: "Client not found." };
   }
 
-  // ticketNumber is globally unique (not scoped per organization), so the
-  // count driving it must be global too.
-  const count = await prisma.supportTicket.count();
-  const ticketNumber = `TKT-${1001 + count}`;
-
-  await prisma.supportTicket.create({
-    data: {
-      ticketNumber,
-      clientId,
-      amcContractId: amcContractId || null,
-      subject,
-      description,
-      priority: priority as never,
-      assigneeId: assigneeId || null,
-    },
+  let ticketNumber = "";
+  await withUniqueCodeRetry(async () => {
+    // ticketNumber is globally unique (not scoped per organization), so the
+    // count driving it must be global too; retry on collision (see sequence.ts).
+    const count = await prisma.supportTicket.count();
+    ticketNumber = `TKT-${1001 + count}`;
+    return prisma.supportTicket.create({
+      data: {
+        ticketNumber,
+        clientId,
+        amcContractId: amcContractId || null,
+        subject,
+        description,
+        priority: priority as never,
+        assigneeId: assigneeId || null,
+      },
+    });
   });
 
   if (priority === "CRITICAL") {
@@ -780,6 +849,9 @@ export async function createTicket(
       `Critical ticket ${ticketNumber} raised: "${subject}".`,
       "/crm/helpdesk"
     );
+  }
+  if (assigneeId) {
+    await notifyEmployee(assigneeId, `Ticket ${ticketNumber} assigned to you: "${subject}".`, "/crm/helpdesk");
   }
 
   revalidatePath("/crm/helpdesk");
@@ -791,35 +863,59 @@ export async function updateTicketStatus(
   ticketId: string,
   status: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED"
 ) {
+  await requireRole(["ADMIN", "SALES"]);
   const user = await getCurrentUser();
   const organizationId = user.organizationId!;
 
-  const result = await prisma.supportTicket.updateMany({
+  const existing = await prisma.supportTicket.findFirst({
     where: { id: ticketId, client: { organizationId } },
+  });
+  if (!existing) {
+    throw new Error("Ticket not found");
+  }
+  if (!isValidTransition(TICKET_STATUS_TRANSITIONS, existing.status, status)) {
+    throw new Error(`Can't move a ticket from ${existing.status} directly to ${status}.`);
+  }
+
+  await prisma.supportTicket.update({
+    where: { id: ticketId },
     data: {
       status,
       resolvedAt: status === "RESOLVED" || status === "CLOSED" ? new Date() : null,
     },
   });
-  if (result.count === 0) {
-    throw new Error("Ticket not found");
-  }
   revalidatePath("/crm/helpdesk");
   revalidatePath(`/crm/helpdesk/${ticketId}`);
   revalidatePath("/");
 }
 
 export async function assignTicket(ticketId: string, assigneeId: string) {
+  await requireRole(["ADMIN", "SALES"]);
   const user = await getCurrentUser();
   const organizationId = user.organizationId!;
 
-  const result = await prisma.supportTicket.updateMany({
+  const existing = await prisma.supportTicket.findFirst({
     where: { id: ticketId, client: { organizationId } },
-    data: { assigneeId: assigneeId || null },
   });
-  if (result.count === 0) {
+  if (!existing) {
     throw new Error("Ticket not found");
   }
+
+  await prisma.supportTicket.update({
+    where: { id: ticketId },
+    data: { assigneeId: assigneeId || null },
+  });
+
+  // Notify the newly assigned employee — previously only CRITICAL ticket
+  // *creation* notified anyone; reassignment was silent.
+  if (assigneeId && assigneeId !== existing.assigneeId) {
+    await notifyEmployee(
+      assigneeId,
+      `Ticket ${existing.ticketNumber} assigned to you: "${existing.subject}".`,
+      "/crm/helpdesk"
+    );
+  }
+
   revalidatePath("/crm/helpdesk");
   revalidatePath(`/crm/helpdesk/${ticketId}`);
 }
@@ -828,6 +924,7 @@ export async function resolveTicket(
   _prevState: FormActionState,
   formData: FormData
 ): Promise<FormActionState> {
+  await requireRole(["ADMIN", "SALES"]);
   const user = await getCurrentUser();
   const organizationId = user.organizationId!;
 
@@ -901,34 +998,36 @@ export async function createAmcContract(
   }
 
   // contractNumber is globally unique (not scoped per organization), so the
-  // count driving it must be global too — matches the seed data's AMC-501+ scheme.
-  const count = await prisma.amcContract.count();
-  const contractNumber = `AMC-${501 + count}`;
-
-  await prisma.amcContract.create({
-    data: {
-      contractNumber,
-      clientId,
-      projectId: projectId || null,
-      contractName: contractName || null,
-      equipmentCovered,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-      value,
-      coverage: coverage || null,
-      visitsIncluded: Number.isFinite(visitsIncluded) && visitsIncluded > 0 ? visitsIncluded : null,
-      responseTime: responseTime || null,
-      billingFrequency: billingFrequency ? (billingFrequency as never) : null,
-      renewalReminderDays:
-        Number.isFinite(renewalReminderDays) && renewalReminderDays > 0 ? renewalReminderDays : null,
-      notes: notes || null,
-    },
+  // count driving it must be global too — matches the seed data's AMC-501+
+  // scheme. Retry on collision (see sequence.ts) since count-then-insert isn't atomic.
+  const createdContract = await withUniqueCodeRetry(async () => {
+    const count = await prisma.amcContract.count();
+    const contractNumber = `AMC-${501 + count}`;
+    return prisma.amcContract.create({
+      data: {
+        contractNumber,
+        clientId,
+        projectId: projectId || null,
+        contractName: contractName || null,
+        equipmentCovered,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        value,
+        coverage: coverage || null,
+        visitsIncluded: Number.isFinite(visitsIncluded) && visitsIncluded > 0 ? visitsIncluded : null,
+        responseTime: responseTime || null,
+        billingFrequency: billingFrequency ? (billingFrequency as never) : null,
+        renewalReminderDays:
+          Number.isFinite(renewalReminderDays) && renewalReminderDays > 0 ? renewalReminderDays : null,
+        notes: notes || null,
+      },
+    });
   });
 
   await notifyRole(
     "SALES",
     organizationId,
-    `AMC ready for review: ${contractName || contractNumber} — ${client.name}.`,
+    `AMC ready for review: ${contractName || createdContract.contractNumber} — ${client.name}.`,
     "/crm/amc"
   );
 

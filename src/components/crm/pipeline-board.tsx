@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { formatDate, formatINR, initials, titleCase } from "@/lib/format";
 import { updateLeadStage } from "@/lib/actions/crm";
+import { LEAD_STAGE_TRANSITIONS, nextStatuses, type LeadStage } from "@/lib/status-transitions";
 import { NewSiteVisitSheet } from "@/components/crm/new-site-visit-sheet";
 import { MoreHorizontal, Calendar, CalendarPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -115,12 +116,12 @@ export function PipelineBoard({
                         <DropdownMenuGroup>
                           <DropdownMenuLabel className="text-xs">Move to</DropdownMenuLabel>
                           <DropdownMenuSeparator />
-                          {STAGES.filter((s) => s.key !== lead.stage).map((s) => (
+                          {nextStatuses(LEAD_STAGE_TRANSITIONS, lead.stage as LeadStage).map((key) => (
                             <DropdownMenuItem
-                              key={s.key}
-                              onClick={() => handleMove(lead.id, s.key)}
+                              key={key}
+                              onClick={() => handleMove(lead.id, key)}
                             >
-                              {s.label}
+                              {STAGES.find((s) => s.key === key)?.label ?? key}
                             </DropdownMenuItem>
                           ))}
                         </DropdownMenuGroup>

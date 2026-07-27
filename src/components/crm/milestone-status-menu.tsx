@@ -12,9 +12,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { titleCase } from "@/lib/format";
 import { updateMilestoneStatus } from "@/lib/actions/crm";
+import { MILESTONE_STATUS_TRANSITIONS, nextStatuses, type MilestoneStatus } from "@/lib/status-transitions";
 import { cn } from "@/lib/utils";
 
-const STATUSES = ["PLANNED", "IN_PROGRESS", "COMPLETED", "DELAYED"] as const;
 
 const badgeVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   PLANNED: "outline",
@@ -32,7 +32,7 @@ export function MilestoneStatusMenu({
 }) {
   const [isPending, startTransition] = useTransition();
 
-  function handleChange(next: (typeof STATUSES)[number]) {
+  function handleChange(next: MilestoneStatus) {
     startTransition(async () => {
       try {
         await updateMilestoneStatus(milestoneId, next);
@@ -55,7 +55,7 @@ export function MilestoneStatusMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuGroup>
-          {STATUSES.filter((s) => s !== status).map((s) => (
+          {nextStatuses(MILESTONE_STATUS_TRANSITIONS, status as MilestoneStatus).map((s) => (
             <DropdownMenuItem key={s} onClick={() => handleChange(s)}>
               Mark {titleCase(s)}
             </DropdownMenuItem>

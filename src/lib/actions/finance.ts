@@ -6,6 +6,7 @@ import { requireRole, getCurrentUser } from "@/lib/dal";
 import { notifyRole } from "@/lib/notify";
 import { requestApproval } from "@/lib/approvals";
 import { formatINR } from "@/lib/format";
+import { withUniqueCodeRetry } from "@/lib/sequence";
 import type { FormActionState } from "@/lib/actions/crm";
 
 export async function createExpenseClaim(
@@ -31,19 +32,20 @@ export async function createExpenseClaim(
   }
 
   // claimNumber is globally unique (not scoped per organization), so the
-  // count driving it must be global too.
-  const count = await prisma.expenseClaim.count();
-  const claimNumber = `EXP-${2001 + count}`;
-
-  const claim = await prisma.expenseClaim.create({
-    data: {
-      claimNumber,
-      employeeId: user.employeeId,
-      category: category as never,
-      amount,
-      expenseDate: new Date(expenseDate),
-      description,
-    },
+  // count driving it must be global too; retry on collision (see sequence.ts).
+  const claim = await withUniqueCodeRetry(async () => {
+    const count = await prisma.expenseClaim.count();
+    const claimNumber = `EXP-${2001 + count}`;
+    return prisma.expenseClaim.create({
+      data: {
+        claimNumber,
+        employeeId: user.employeeId!,
+        category: category as never,
+        amount,
+        expenseDate: new Date(expenseDate),
+        description,
+      },
+    });
   });
 
   await requestApproval({
@@ -56,7 +58,7 @@ export async function createExpenseClaim(
   await notifyRole(
     "FINANCE",
     organizationId,
-    `New expense claim ${claimNumber} (${formatINR(amount)}) is awaiting your approval.`,
+    `New expense claim ${claim.claimNumber} (${formatINR(amount)}) is awaiting your approval.`,
     "/approvals"
   );
 

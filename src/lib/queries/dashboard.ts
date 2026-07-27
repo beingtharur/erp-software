@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db";
+import { computeAmcStatus } from "@/lib/amc-status";
+import { computeVendorPaymentStatus } from "@/lib/payment-status";
 
 function startOfToday() {
   const d = new Date();
@@ -16,13 +18,12 @@ export async function getDashboardData(organizationId: string) {
     presentToday,
     checkedInNow,
     pendingLeave,
-    overduePayments,
-    expiringAmc,
+    unpaidVendorPayments,
+    allAmcContracts,
     openPurchaseOrders,
     leadsByStage,
     projectsByLine,
     upcomingVisits,
-    amcExpiring,
     liveVisitLogs,
     recentQuotations,
   ] = await Promise.all([
@@ -40,12 +41,18 @@ export async function getDashboardData(organizationId: string) {
     prisma.attendance.count({ where: { date: today, status: "PRESENT", employee: { organizationId } } }),
     prisma.visitLog.count({ where: { status: "CHECKED_IN", employee: { organizationId } } }),
     prisma.leaveRequest.count({ where: { status: "PENDING", employee: { organizationId } } }),
-    prisma.vendorPayment.aggregate({
-      where: { status: "OVERDUE", vendor: { organizationId } },
-      _sum: { amount: true },
-      _count: true,
+    // OVERDUE/EXPIRING_SOON are never recomputed at rest (see lib/payment-status.ts
+    // and lib/amc-status.ts) — fetch the candidates and derive live status in JS
+    // instead of filtering by the stale stored column.
+    prisma.vendorPayment.findMany({
+      where: { status: { not: "PAID" }, vendor: { organizationId } },
+      select: { amount: true, dueDate: true, status: true },
     }),
-    prisma.amcContract.count({ where: { status: "EXPIRING_SOON", client: { organizationId } } }),
+    prisma.amcContract.findMany({
+      where: { client: { organizationId } },
+      orderBy: { endDate: "asc" },
+      include: { client: true },
+    }),
     prisma.purchaseOrder.count({
       where: { status: { in: ["SENT", "CONFIRMED"] }, vendor: { organizationId } },
     }),
@@ -66,12 +73,6 @@ export async function getDashboardData(organizationId: string) {
       take: 5,
       include: { client: true, assignedTo: true },
     }),
-    prisma.amcContract.findMany({
-      where: { status: { in: ["EXPIRING_SOON", "ACTIVE"] }, client: { organizationId } },
-      orderBy: { endDate: "asc" },
-      take: 5,
-      include: { client: true },
-    }),
     prisma.visitLog.findMany({
       where: { status: "CHECKED_IN", employee: { organizationId } },
       orderBy: { checkInTime: "desc" },
@@ -86,6 +87,21 @@ export async function getDashboardData(organizationId: string) {
     }),
   ]);
 
+  const overduePaymentRows = unpaidVendorPayments.filter(
+    (p) => computeVendorPaymentStatus(p) === "OVERDUE"
+  );
+  const overduePaymentsAmount = overduePaymentRows.reduce((sum, p) => sum + p.amount, 0);
+  const overduePaymentsCount = overduePaymentRows.length;
+
+  const amcWithLiveStatus = allAmcContracts.map((c) => ({
+    ...c,
+    status: computeAmcStatus(c.endDate, c.renewalReminderDays),
+  }));
+  const expiringAmc = amcWithLiveStatus.filter((c) => c.status === "EXPIRING_SOON").length;
+  const amcExpiring = amcWithLiveStatus
+    .filter((c) => c.status === "EXPIRING_SOON" || c.status === "ACTIVE")
+    .slice(0, 5);
+
   return {
     openLeadsValue: openLeads._sum.value ?? 0,
     openLeadsCount: openLeads._count,
@@ -95,8 +111,8 @@ export async function getDashboardData(organizationId: string) {
     presentToday,
     checkedInNow,
     pendingLeave,
-    overduePaymentsAmount: overduePayments._sum.amount ?? 0,
-    overduePaymentsCount: overduePayments._count,
+    overduePaymentsAmount,
+    overduePaymentsCount,
     expiringAmc,
     openPurchaseOrders,
     leadsByStage,

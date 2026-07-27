@@ -23,17 +23,29 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { updateUser } from "@/lib/actions/admin";
-import { roleLabel } from "@/lib/nav";
+import { roleLabel, navSections } from "@/lib/nav";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Pencil } from "lucide-react";
 import type { AccessRole } from "@/generated/prisma/client";
 
 export function EditUserSheet({
   user,
 }: {
-  user: { id: string; email: string; accessRole: AccessRole; employeeName: string | null };
+  user: {
+    id: string;
+    email: string;
+    accessRole: AccessRole;
+    employeeName: string | null;
+    modules: string[];
+  };
 }) {
   const [open, setOpen] = useState(false);
+  const [modules, setModules] = useState<string[]>(user.modules);
   const [state, formAction, pending] = useActionState(updateUser, undefined);
+
+  function toggleModule(key: string, checked: boolean) {
+    setModules((prev) => (checked ? [...prev, key] : prev.filter((m) => m !== key)));
+  }
 
   useEffect(() => {
     if (state?.success) {
@@ -84,6 +96,31 @@ export function EditUserSheet({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label>Module access</Label>
+            <p className="text-xs text-muted-foreground">
+              Grants beyond the role&apos;s defaults are additive when switching roles from the
+              table — uncheck a module here to actually revoke it.
+            </p>
+            <div className="flex flex-col gap-2 pt-1">
+              {navSections.map((section) => (
+                <div key={section.key} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`module-${user.id}-${section.key}`}
+                    checked={modules.includes(section.key)}
+                    onCheckedChange={(checked) => toggleModule(section.key, checked === true)}
+                  />
+                  {modules.includes(section.key) && (
+                    <input type="hidden" name="modules" value={section.key} />
+                  )}
+                  <Label htmlFor={`module-${user.id}-${section.key}`} className="font-normal">
+                    {section.title}
+                  </Label>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">

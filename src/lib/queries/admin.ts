@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 export async function getUsers(organizationId: string) {
   return prisma.user.findMany({
     where: { organizationId },
-    include: { employee: true },
+    include: { employee: true, moduleAccess: true },
     orderBy: { createdAt: "desc" },
   });
 }

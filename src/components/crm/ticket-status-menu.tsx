@@ -12,9 +12,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { titleCase } from "@/lib/format";
 import { updateTicketStatus } from "@/lib/actions/crm";
+import { TICKET_STATUS_TRANSITIONS, nextStatuses, type TicketStatus } from "@/lib/status-transitions";
 import { cn } from "@/lib/utils";
-
-const STATUSES = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"] as const;
 
 const badgeVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   OPEN: "outline",
@@ -32,7 +31,7 @@ export function TicketStatusMenu({
 }) {
   const [isPending, startTransition] = useTransition();
 
-  function handleChange(next: (typeof STATUSES)[number]) {
+  function handleChange(next: TicketStatus) {
     startTransition(async () => {
       try {
         await updateTicketStatus(ticketId, next);
@@ -55,7 +54,7 @@ export function TicketStatusMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuGroup>
-          {STATUSES.filter((s) => s !== status).map((s) => (
+          {nextStatuses(TICKET_STATUS_TRANSITIONS, status as TicketStatus).map((s) => (
             <DropdownMenuItem key={s} onClick={() => handleChange(s)}>
               Mark {titleCase(s)}
             </DropdownMenuItem>

@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { checkIn, checkOut } from "@/lib/actions/field";
+import { checkIn, checkOut, recordLocationPing } from "@/lib/actions/field";
 import { formatDateTime } from "@/lib/format";
 import { MapPin, LogOut, LocateFixed } from "lucide-react";
 
@@ -84,6 +84,29 @@ export function MyFieldStatus({
     // Deferred a tick so the "unavailable" setState below isn't synchronous-in-effect.
     queueMicrotask(requestLocation);
   }, [activeVisit, requestLocation]);
+
+  // While checked in, periodically record a real device fix so the visit has
+  // an actual location trail — previously a LocationPing was only ever
+  // written once, at check-in time.
+  useEffect(() => {
+    if (!activeVisit) return;
+    if (typeof window === "undefined" || !window.isSecureContext || !("geolocation" in navigator)) {
+      return;
+    }
+    const ping = () => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          recordLocationPing(pos.coords.latitude, pos.coords.longitude).catch(() => {
+            // Best-effort — a missed ping shouldn't interrupt the visit.
+          });
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 }
+      );
+    };
+    const intervalId = window.setInterval(ping, 5 * 60_000);
+    return () => window.clearInterval(intervalId);
+  }, [activeVisit]);
 
   if (activeVisit) {
     return (
