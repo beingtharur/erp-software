@@ -8,8 +8,9 @@ const tabs = [
   { title: "Org Chart", href: "/hrms/org-chart" },
   { title: "Attendance", href: "/hrms/attendance" },
   { title: "Leave", href: "/hrms/leave" },
-  { title: "Payroll", href: "/hrms/payroll" },
   { title: "Timesheets", href: "/hrms/timesheets" },
+  { title: "Tasks", href: "/hrms/tasks" },
+  { title: "Payroll", href: "/hrms/payroll" },
 ];
 
 export default async function HrmsLayout({ children }: { children: React.ReactNode }) {

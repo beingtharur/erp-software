@@ -41,6 +41,10 @@ export function RegisterForm() {
             <Input id="orgName" name="orgName" placeholder="Acme Industries" required />
           </div>
           <div className="flex flex-col gap-1.5">
+            <Label htmlFor="name">Your full name</Label>
+            <Input id="name" name="name" placeholder="Jane Doe" required autoComplete="name" />
+          </div>
+          <div className="flex flex-col gap-1.5">
             <Label htmlFor="email">Work email</Label>
             <Input
               id="email"

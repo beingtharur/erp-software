@@ -37,7 +37,7 @@ export async function getDashboardData(organizationId: string) {
       _sum: { value: true },
       _count: true,
     }),
-    prisma.employee.count({ where: { status: "ACTIVE", organizationId } }),
+    prisma.employee.count({ where: { status: "ACTIVE", organizationId, deletedAt: null } }),
     prisma.attendance.count({ where: { date: today, status: "PRESENT", employee: { organizationId } } }),
     prisma.visitLog.count({ where: { status: "CHECKED_IN", employee: { organizationId } } }),
     prisma.leaveRequest.count({ where: { status: "PENDING", employee: { organizationId } } }),

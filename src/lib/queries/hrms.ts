@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { getTaskStats } from "@/lib/queries/tasks";
 
 function startOfToday() {
   const d = new Date();
@@ -18,8 +19,9 @@ export async function getHrmsOverview(organizationId: string) {
     pendingPayroll,
     recentLeaveRequests,
     departmentCounts,
+    taskStats,
   ] = await Promise.all([
-    prisma.employee.count({ where: { status: "ACTIVE", organizationId } }),
+    prisma.employee.count({ where: { status: "ACTIVE", organizationId, deletedAt: null } }),
     prisma.attendance.groupBy({
       by: ["status"],
       where: { date: today, employee: { organizationId } },
@@ -41,7 +43,14 @@ export async function getHrmsOverview(organizationId: string) {
       take: 6,
       include: { employee: true },
     }),
-    prisma.employee.groupBy({ by: ["department"], _count: true, where: { status: "ACTIVE", organizationId } }),
+    prisma.employee.groupBy({
+      by: ["department"],
+      _count: true,
+      where: { status: "ACTIVE", organizationId, deletedAt: null },
+    }),
+    // Reuses the same counts the Tasks console header shows, so the two views
+    // can never disagree about what "overdue" or "completed today" means.
+    getTaskStats(organizationId),
   ]);
 
   return {
@@ -52,12 +61,13 @@ export async function getHrmsOverview(organizationId: string) {
     pendingPayroll,
     recentLeaveRequests,
     departmentCounts,
+    taskStats,
   };
 }
 
 export async function getEmployees(organizationId: string) {
   return prisma.employee.findMany({
-    where: { organizationId },
+    where: { organizationId, deletedAt: null },
     orderBy: { name: "asc" },
     include: {
       _count: { select: { timesheets: true, leaveRequests: true } },
@@ -96,7 +106,7 @@ export async function getSalaryStructureHistory(employeeId: string) {
 
 export async function getOrgChart(organizationId: string) {
   return prisma.employee.findMany({
-    where: { status: "ACTIVE", organizationId },
+    where: { status: "ACTIVE", organizationId, deletedAt: null },
     orderBy: { name: "asc" },
     select: {
       id: true,
@@ -117,7 +127,7 @@ export async function getAttendanceToday(organizationId: string) {
 
   const [employees, records, approvedLeaveToday] = await Promise.all([
     prisma.employee.findMany({
-      where: { status: "ACTIVE", organizationId },
+      where: { status: "ACTIVE", organizationId, deletedAt: null },
       orderBy: { name: "asc" },
     }),
     prisma.attendance.findMany({
@@ -190,6 +200,7 @@ export async function getEmployeesWithoutSalaryStructure(organizationId: string)
     where: {
       organizationId,
       status: "ACTIVE",
+      deletedAt: null,
       salaryStructures: { none: { isActive: true } },
     },
     orderBy: { name: "asc" },

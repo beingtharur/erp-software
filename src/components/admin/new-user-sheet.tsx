@@ -22,32 +22,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { JobTitleSelect, PortalAccessSelect } from "@/components/roles/role-fields";
 import { createUserForEmployee } from "@/lib/actions/admin";
-import { roleLabel } from "@/lib/nav";
 import { Plus } from "lucide-react";
+import type { EmployeeRole } from "@/generated/prisma/client";
 
 type EligibleEmployee = {
   id: string;
   name: string;
   employeeCode: string;
   email: string;
-};
-
-const EMPLOYEE_ROLE_LABEL: Record<string, string> = {
-  INSTALLATION_CREW: "Installation Crew",
-  TECHNICIAN: "Technician",
-  SALES_REP: "Sales Rep",
-  ENGINEER: "Engineer",
-  PROJECT_MANAGER: "Project Manager",
-  ADMIN: "Admin",
-  HR: "HR",
-  FINANCE: "Finance",
+  role: EmployeeRole;
 };
 
 export function NewUserSheet({ employees }: { employees: EligibleEmployee[] }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"existing" | "new">(employees.length > 0 ? "existing" : "new");
+  const [newJobTitle, setNewJobTitle] = useState<EmployeeRole>("ENGINEER");
+  const [existingEmployeeId, setExistingEmployeeId] = useState<string | null>(null);
   const [state, formAction, pending] = useActionState(createUserForEmployee, undefined);
+
+  // The access-level suggestion follows whichever job title the form is
+  // actually about: the one being typed in "new person" mode, or the already
+  // stored job title of the employee picked in "existing employee" mode.
+  const suggestedFor =
+    mode === "new"
+      ? newJobTitle
+      : employees.find((e) => e.id === existingEmployeeId)?.role;
 
   useEffect(() => {
     if (state?.success) {
@@ -98,7 +99,12 @@ export function NewUserSheet({ employees }: { employees: EligibleEmployee[] }) {
           {mode === "existing" ? (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="employeeId">Employee</Label>
-              <Select name="employeeId" required={mode === "existing"}>
+              <Select
+                name="employeeId"
+                required={mode === "existing"}
+                value={existingEmployeeId}
+                onValueChange={(value) => setExistingEmployeeId(value as string | null)}
+              >
                 <SelectTrigger id="employeeId" className="w-full">
                   <SelectValue placeholder="Select employee">
                     {(value: unknown) => {
@@ -134,21 +140,13 @@ export function NewUserSheet({ employees }: { employees: EligibleEmployee[] }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="role">Employee role</Label>
-                  <Select name="role" required={mode === "new"} defaultValue="ENGINEER">
-                    <SelectTrigger id="role" className="w-full">
-                      <SelectValue>
-                        {(value: unknown) => EMPLOYEE_ROLE_LABEL[value as string] ?? "Engineer"}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(EMPLOYEE_ROLE_LABEL).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="role">Job title</Label>
+                  <JobTitleSelect
+                    id="role"
+                    required={mode === "new"}
+                    value={newJobTitle}
+                    onValueChange={setNewJobTitle}
+                  />
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="department">Department</Label>
@@ -180,21 +178,8 @@ export function NewUserSheet({ employees }: { employees: EligibleEmployee[] }) {
           )}
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="accessRole">Access role</Label>
-            <Select name="accessRole" required>
-              <SelectTrigger id="accessRole" className="w-full">
-                <SelectValue placeholder="Select role">
-                  {(value: unknown) => roleLabel[value as keyof typeof roleLabel] ?? "Select role"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(roleLabel) as (keyof typeof roleLabel)[]).map((role) => (
-                  <SelectItem key={role} value={role}>
-                    {roleLabel[role]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="accessRole">Portal access level</Label>
+            <PortalAccessSelect id="accessRole" required suggestedFor={suggestedFor} />
           </div>
 
           <div className="flex flex-col gap-1.5">

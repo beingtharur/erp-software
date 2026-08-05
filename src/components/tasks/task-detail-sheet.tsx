@@ -13,7 +13,7 @@ import {
   SheetDescription,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { addTaskComment, setTaskBlocked } from "@/lib/actions/me";
+import { addTaskComment, setTaskBlocked } from "@/lib/actions/tasks";
 import { formatDateTime } from "@/lib/format";
 import { MessageSquare } from "lucide-react";
 

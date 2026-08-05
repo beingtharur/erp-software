@@ -15,26 +15,9 @@ import {
   SheetTrigger,
   SheetClose,
 } from "@/components/ui/sheet";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { JobTitleSelect } from "@/components/roles/role-fields";
 import { createSelfEmployeeProfile } from "@/lib/actions/hrms";
 import { UserCog } from "lucide-react";
-
-const EMPLOYEE_ROLE_LABEL: Record<string, string> = {
-  INSTALLATION_CREW: "Installation Crew",
-  TECHNICIAN: "Technician",
-  SALES_REP: "Sales Rep",
-  ENGINEER: "Engineer",
-  PROJECT_MANAGER: "Project Manager",
-  ADMIN: "Admin",
-  HR: "HR",
-  FINANCE: "Finance",
-};
 
 export function CompleteProfileBanner() {
   const [open, setOpen] = useState(false);
@@ -73,21 +56,11 @@ export function CompleteProfileBanner() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="profile-role">Role</Label>
-                <Select name="role" required defaultValue="ADMIN">
-                  <SelectTrigger id="profile-role" className="w-full">
-                    <SelectValue>
-                      {(value: unknown) => EMPLOYEE_ROLE_LABEL[value as string] ?? "Admin"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(EMPLOYEE_ROLE_LABEL).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="profile-role">Job title</Label>
+                <JobTitleSelect id="profile-role" required defaultValue="ADMIN" />
+                <p className="text-xs text-muted-foreground">
+                  What you do — this doesn&apos;t change your portal access.
+                </p>
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="profile-department">Department</Label>

@@ -10,7 +10,7 @@ export async function getUsers(organizationId: string) {
 
 export async function getEmployeesWithoutLogin(organizationId: string) {
   return prisma.employee.findMany({
-    where: { user: null, status: "ACTIVE", organizationId },
+    where: { user: null, status: "ACTIVE", organizationId, deletedAt: null },
     orderBy: { name: "asc" },
     select: { id: true, name: true, employeeCode: true, email: true, role: true, department: true },
   });

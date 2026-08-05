@@ -38,6 +38,13 @@ export default async function VendorsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
+            {vendors.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center text-sm text-muted-foreground">
+                  No vendors yet. Add your first supplier above.
+                </TableCell>
+              </TableRow>
+            )}
             {vendors.map((v) => (
               <TableRow key={v.id}>
                 <TableCell className="font-medium">

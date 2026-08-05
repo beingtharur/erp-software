@@ -30,6 +30,26 @@ model Organization {
   geofenceZones GeofenceZone[]
   subscription  Subscription?
   payments      Payment[]
+  auditLogs     AuditLog[]
+}
+
+// Append-only trail for the highest-stakes state changes (employee create/update,
+// approval decisions, payment confirmation, role changes) — not a general-purpose
+// activity feed. actorId is the User id (not Employee) since it must record who
+// was authenticated, even for actions an employee-less user could take.
+model AuditLog {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  actorId        String
+  action         String
+  entityType     String
+  entityId       String
+  metadata       String?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([entityType, entityId])
 }
 
 // ---------- Auth ----------
@@ -119,7 +139,7 @@ model Employee {
   name           String
   role           EmployeeRole
   department     String
-  email          String         @unique
+  email          String
   phone          String
   dateOfJoining  DateTime
   status         EmployeeStatus @default(ACTIVE)
@@ -130,6 +150,9 @@ model Employee {
   reportingToId  String?
   reportingTo    Employee?      @relation("ReportsTo", fields: [reportingToId], references: [id])
   directReports  Employee[]     @relation("ReportsTo")
+  // deletedAt makes deletion reversible instead of a hard delete that can be
+  // blocked outright by FK-linked HR/business records (see deleteEmployee).
+  deletedAt      DateTime?
 
   user User?
 
@@ -156,11 +179,14 @@ model Employee {
   documentsUploaded            EmployeeDocument[]    @relation("DocumentUploadedBy")
   siteVisitAttachmentsUploaded SiteVisitAttachment[]
   salaryStructures             SalaryStructure[]
+  vendorPaymentsConfirmed      VendorPayment[]       @relation("VendorPaymentConfirmedBy")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([organizationId, email])
   @@index([organizationId])
+  @@index([reportingToId])
 }
 
 enum AttendanceStatus {
@@ -212,6 +238,8 @@ model LeaveRequest {
   appliedOn  DateTime    @default(now())
   decidedOn  DateTime?
   decidedBy  String?
+
+  @@index([employeeId, status])
 }
 
 enum PayrollStatus {
@@ -281,6 +309,8 @@ model Timesheet {
   billable        Boolean  @default(true)
 
   createdAt DateTime @default(now())
+
+  @@index([employeeId, date])
 }
 
 // ---------- CRM ----------
@@ -367,6 +397,10 @@ model Lead {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([ownerId])
+  @@index([stage])
 }
 
 enum QuotationStatus {
@@ -728,6 +762,17 @@ model VendorPayment {
   paidDate        DateTime?
   status          PaymentStatus  @default(PENDING)
   method          String?
+
+  // Maker-checker evidence for the payment-confirmation approval flow — set when
+  // a confirmation request is submitted (requestPaymentConfirmation), not when
+  // the payment is created. confirmedById is the Employee who *decided* the
+  // approval (a different person than whoever submitted it), not the submitter.
+  referenceNumber String?
+  proofUrl        String?
+  proofKey        String?
+  confirmedById   String?
+  confirmedBy     Employee?      @relation("VendorPaymentConfirmedBy", fields: [confirmedById], references: [id])
+  confirmedAt     DateTime?
 }
 
 // ---------- GPS & Field Tracking ----------
@@ -791,6 +836,7 @@ enum ApprovalEntityType {
   PURCHASE_ORDER
   EXPENSE_CLAIM
   BUDGET
+  PAYMENT_CONFIRMATION
 }
 
 enum ApprovalStatus {

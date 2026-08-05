@@ -30,6 +30,13 @@ export default async function VisitHistoryPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
+          {visits.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
+                No visits logged yet. They appear here once field crew check in from the Live Map.
+              </TableCell>
+            </TableRow>
+          )}
           {visits.map((v) => (
             <TableRow key={v.id}>
               <TableCell className="font-medium">{v.employee.name}</TableCell>

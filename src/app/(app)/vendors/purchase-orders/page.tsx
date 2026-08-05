@@ -12,7 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { formatDate, formatINR, titleCase } from "@/lib/format";
 import { NewPurchaseOrderSheet } from "@/components/vendors/new-po-sheet";
 import { EditPurchaseOrderSheet } from "@/components/vendors/edit-po-sheet";
-import { DeletePoButton, ReorderPoButton } from "@/components/vendors/po-row-actions";
+import { DeletePoButton, ReorderPoButton, CancelPoButton } from "@/components/vendors/po-row-actions";
+import { isValidTransition, PO_STATUS_TRANSITIONS, type PoStatus } from "@/lib/status-transitions";
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   DRAFT: "outline",
@@ -50,6 +51,14 @@ export default async function PurchaseOrdersPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
+            {orders.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center text-sm text-muted-foreground">
+                  No purchase orders yet. Raise one above — it goes to an admin for approval before
+                  it&apos;s sent.
+                </TableCell>
+              </TableRow>
+            )}
             {orders.map((po) => (
               <TableRow key={po.id}>
                 <TableCell className="font-medium">{po.poNumber}</TableCell>
@@ -67,7 +76,10 @@ export default async function PurchaseOrdersPage() {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1.5">
-                    <EditPurchaseOrderSheet po={po} vendors={vendors} />
+                    {po.status === "DRAFT" && <EditPurchaseOrderSheet po={po} vendors={vendors} />}
+                    {isValidTransition(PO_STATUS_TRANSITIONS, po.status as PoStatus, "CANCELLED") && (
+                      <CancelPoButton poId={po.id} poNumber={po.poNumber} />
+                    )}
                     <ReorderPoButton poId={po.id} />
                     <DeletePoButton poId={po.id} poNumber={po.poNumber} />
                   </div>

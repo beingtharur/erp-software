@@ -10,6 +10,7 @@ import { saveFile, deleteFile } from "@/lib/storage";
 import { hashPassword } from "@/lib/password";
 import { roleSectionAccess } from "@/lib/nav";
 import { withUniqueCodeRetry } from "@/lib/sequence";
+import { logAudit } from "@/lib/audit";
 import type { FormActionState } from "@/lib/actions/crm";
 import type { AccessRole } from "@/generated/prisma/client";
 
@@ -36,10 +37,18 @@ export async function decideLeaveRequest(
     throw new Error("Leave request not found");
   }
 
-  const leave = await prisma.leaveRequest.update({
-    where: { id: leaveId },
+  // Guard against both a genuine race (two decisions in flight at once) and a
+  // re-decision of an already-decided request (there was previously no check
+  // at all here — a crafted request could flip an APPROVED leave to REJECTED
+  // or vice versa after the fact).
+  const decided = await prisma.leaveRequest.updateMany({
+    where: { id: leaveId, status: "PENDING" },
     data: { status: decision, decidedOn: new Date(), decidedBy: user.employee?.name ?? "HR" },
   });
+  if (decided.count === 0) {
+    throw new Error("This leave request has already been decided");
+  }
+  const leave = { ...existing, status: decision };
   await notifyEmployee(
     leave.employeeId,
     `Your ${titleCase(leave.type)} leave request was ${decision === "APPROVED" ? "approved" : "rejected"}.`,
@@ -91,10 +100,18 @@ export async function processPayroll(payrollId: string) {
     unpaidLeaveDays,
   });
 
-  await prisma.payrollRecord.update({
-    where: { id: payrollId },
+  // Status-scoped so two concurrent "Process" clicks can't both recompute and
+  // overwrite netPay — matches the same guard used in decideApproval/
+  // decideLeaveRequest. The earlier read-based check above already refuses an
+  // already-PROCESSED record; this closes the race window between that read
+  // and this write.
+  const processed = await prisma.payrollRecord.updateMany({
+    where: { id: payrollId, status: "PENDING" },
     data: { status: "PROCESSED", paidOn: new Date(), deductions, netPay },
   });
+  if (processed.count === 0) {
+    throw new Error("Payroll is already processed and locked. Unlock it first to reprocess.");
+  }
   revalidatePath("/hrms/payroll");
   revalidatePath("/hrms");
 }
@@ -273,7 +290,7 @@ export async function createEmployee(
     return { error: "Please fill in all fields." };
   }
 
-  const existingEmployee = await prisma.employee.findUnique({ where: { email } });
+  const existingEmployee = await prisma.employee.findFirst({ where: { organizationId, email } });
   if (existingEmployee) {
     return { error: "An employee with this email already exists." };
   }
@@ -352,11 +369,95 @@ export async function createEmployee(
       "Welcome to the Exist Digitally Ops Platform — your portal access is ready. Your temporary password is 'demo123'.",
       "/me"
     );
+    await logAudit({
+      organizationId,
+      actorId: user.id,
+      action: "employee.created",
+      entityType: "Employee",
+      entityId: newUser.employeeId!,
+    });
   }
 
   revalidatePath("/hrms/employees");
   revalidatePath("/hrms");
   revalidatePath("/admin/users");
+  return { success: true };
+}
+
+// requireRole(["ADMIN","HR"]) — the counterpart to createEmployee. Previously
+// no edit path existed at all for an already-created Employee (confirmed by
+// grepping this file), which mattered for two things: (1) registerOrganization
+// leaves department/phone/baseLocation blank for a new org's admin, with no way
+// to fill them in later, and (2) Employee.reportingToId had no write path
+// anywhere outside prisma/seed.ts, so "assign a task to someone" was
+// structurally unreachable for any non-seeded org (see updateTaskStatus/
+// getIsManager in actions/me.ts and queries/me.ts). This one action closes
+// both gaps rather than building two separate mechanisms.
+export async function updateEmployee(
+  _prevState: FormActionState,
+  formData: FormData
+): Promise<FormActionState> {
+  await requireRole(["ADMIN", "HR"]);
+  const actor = await getCurrentUser();
+  const organizationId = actor.organizationId!;
+
+  const employeeId = String(formData.get("employeeId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const department = String(formData.get("department") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").trim();
+  const baseLocation = String(formData.get("baseLocation") ?? "").trim();
+  const status = String(formData.get("status") ?? "");
+  const reportingToIdRaw = String(formData.get("reportingToId") ?? "");
+  const reportingToId =
+    reportingToIdRaw === "" || reportingToIdRaw === "none" ? null : reportingToIdRaw;
+
+  if (!employeeId || !name || !status) {
+    return { error: "Please fill in the required fields." };
+  }
+  if (reportingToId === employeeId) {
+    return { error: "An employee can't report to themselves." };
+  }
+
+  const employee = await prisma.employee.findFirst({
+    where: { id: employeeId, organizationId, deletedAt: null },
+  });
+  if (!employee) {
+    return { error: "Employee not found." };
+  }
+
+  if (reportingToId) {
+    const manager = await prisma.employee.findFirst({
+      where: { id: reportingToId, organizationId, deletedAt: null },
+    });
+    if (!manager) {
+      return { error: "Selected manager not found." };
+    }
+  }
+
+  await prisma.employee.update({
+    where: { id: employeeId },
+    data: {
+      name,
+      department,
+      phone,
+      baseLocation,
+      status: status as never,
+      reportingToId,
+    },
+  });
+
+  await logAudit({
+    organizationId,
+    actorId: actor.id,
+    action: "employee.updated",
+    entityType: "Employee",
+    entityId: employeeId,
+  });
+
+  revalidatePath("/hrms/employees");
+  revalidatePath(`/hrms/employees/${employeeId}`);
+  revalidatePath("/hrms/org-chart");
+  revalidatePath("/me");
   return { success: true };
 }
 
@@ -383,9 +484,12 @@ export async function createSelfEmployeeProfile(
 
   // The user's own email may already exist as an unlinked Employee row (e.g.
   // HR added them separately before they completed this form) — link that
-  // instead of creating a duplicate.
-  const existingEmployee = await prisma.employee.findUnique({
-    where: { email: user.email },
+  // instead of creating a duplicate. Scoped to the user's own org: Employee.email
+  // is only unique per-org now, so an unscoped lookup here would risk linking a
+  // user to a different organization's employee record if the emails happened
+  // to match (a cross-tenant IDOR).
+  const existingEmployee = await prisma.employee.findFirst({
+    where: { organizationId, email: user.email },
     include: { user: true },
   });
   if (existingEmployee) {
@@ -393,6 +497,13 @@ export async function createSelfEmployeeProfile(
       return { error: "An employee record with your email is already linked to a different login." };
     }
     await prisma.user.update({ where: { id: user.id }, data: { employeeId: existingEmployee.id } });
+    await logAudit({
+      organizationId,
+      actorId: user.id,
+      action: "employee.linked",
+      entityType: "Employee",
+      entityId: existingEmployee.id,
+    });
     revalidatePath("/", "layout");
     return { success: true };
   }
@@ -418,10 +529,29 @@ export async function createSelfEmployeeProfile(
 
   await prisma.user.update({ where: { id: user.id }, data: { employeeId: employee.id } });
 
+  await logAudit({
+    organizationId,
+    actorId: user.id,
+    action: "employee.created",
+    entityType: "Employee",
+    entityId: employee.id,
+    metadata: { source: "self-service" },
+  });
+
   revalidatePath("/", "layout");
   return { success: true };
 }
 
+// Soft-delete: sets deletedAt and removes the linked login instead of a hard
+// DB delete. Two reasons, not one: (1) the prior hard delete already refused
+// to run at all once any FK-linked HR/business record existed (P2003 below),
+// which was most employees in practice — soft-delete makes "remove this
+// employee" actually work instead of just failing with a wall of text; (2) it
+// makes registerOrganization's auto-created admin Employee (see auth.ts)
+// reversible — an admin who never wants an HR profile can remove it without
+// losing the underlying User/session. The employee's historical records
+// (attendance, payroll, approvals, etc.) are left untouched and still valid
+// for reporting; every employee-listing query filters deletedAt: null.
 export async function deleteEmployee(employeeId: string) {
   await requireRole(["ADMIN", "HR"]);
   const currentUser = await getCurrentUser();
@@ -431,30 +561,32 @@ export async function deleteEmployee(employeeId: string) {
     throw new Error("You can't delete your own employee record.");
   }
 
-  const employee = await prisma.employee.findFirst({ where: { id: employeeId, organizationId } });
+  const employee = await prisma.employee.findFirst({
+    where: { id: employeeId, organizationId, deletedAt: null },
+  });
   if (!employee) {
     throw new Error("Employee not found");
   }
 
-  try {
-    await prisma.$transaction([
-      // Deleting the login along with the employee is intentional — portal
-      // access shouldn't outlive the employee record it's attributed to.
-      prisma.user.deleteMany({ where: { employeeId } }),
-      prisma.employee.delete({ where: { id: employeeId } }),
-    ]);
-  } catch (err) {
-    if (err instanceof Error && "code" in err && (err as { code?: string }).code === "P2003") {
-      throw new Error(
-        "Cannot delete this employee — they have existing HR or business records (attendance, leave, payroll, tasks, approvals, leads, etc.) linked to their profile."
-      );
-    }
-    throw err;
-  }
+  await prisma.$transaction([
+    // Removing the login along with the employee is intentional — portal
+    // access shouldn't outlive the employee record it's attributed to.
+    prisma.user.deleteMany({ where: { employeeId } }),
+    prisma.employee.update({ where: { id: employeeId }, data: { deletedAt: new Date() } }),
+  ]);
+
+  await logAudit({
+    organizationId,
+    actorId: currentUser.id,
+    action: "employee.deleted",
+    entityType: "Employee",
+    entityId: employeeId,
+  });
 
   revalidatePath("/hrms/employees");
   revalidatePath("/hrms");
   revalidatePath("/admin/users");
+  revalidatePath("/hrms/org-chart");
 }
 
 const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024; // 10MB

@@ -3,8 +3,8 @@
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { deletePurchaseOrder, duplicatePurchaseOrder } from "@/lib/actions/vendor";
-import { Trash2, Repeat } from "lucide-react";
+import { deletePurchaseOrder, duplicatePurchaseOrder, cancelPurchaseOrder } from "@/lib/actions/vendor";
+import { Trash2, Repeat, Ban } from "lucide-react";
 
 export function DeletePoButton({ poId, poNumber }: { poId: string; poNumber: string }) {
   const [isPending, startTransition] = useTransition();
@@ -30,6 +30,35 @@ export function DeletePoButton({ poId, poNumber }: { poId: string; poNumber: str
       onClick={onDelete}
     >
       <Trash2 className="size-3.5" />
+    </Button>
+  );
+}
+
+export function CancelPoButton({ poId, poNumber }: { poId: string; poNumber: string }) {
+  const [isPending, startTransition] = useTransition();
+
+  function onCancel() {
+    if (!window.confirm(`Cancel purchase order ${poNumber}? This can't be undone.`)) return;
+    startTransition(async () => {
+      try {
+        await cancelPurchaseOrder(poId);
+        toast.success("Purchase order cancelled");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not cancel purchase order");
+      }
+    });
+  }
+
+  return (
+    <Button
+      size="icon-sm"
+      variant="outline"
+      disabled={isPending}
+      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+      onClick={onCancel}
+      title="Cancel"
+    >
+      <Ban className="size-3.5" />
     </Button>
   );
 }

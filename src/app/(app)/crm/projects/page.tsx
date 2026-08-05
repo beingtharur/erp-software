@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { getProjects } from "@/lib/queries/crm";
+import { getProjects, getClientOptions } from "@/lib/queries/crm";
 import { getCurrentUser } from "@/lib/dal";
+import { NewProjectSheet } from "@/components/crm/new-project-sheet";
 import {
   Table,
   TableBody,
@@ -22,10 +23,18 @@ const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
 
 export default async function ProjectsPage() {
   const user = await getCurrentUser();
-  const projects = await getProjects(user.organizationId!);
+  const organizationId = user.organizationId!;
+  const [projects, clients] = await Promise.all([
+    getProjects(organizationId),
+    getClientOptions(organizationId),
+  ]);
 
   return (
-    <div className="rounded-lg border">
+    <div className="flex min-w-0 flex-1 flex-col gap-4">
+      <div className="flex justify-end">
+        <NewProjectSheet clients={clients} />
+      </div>
+      <div className="rounded-lg border">
       <Table>
         <TableHeader>
           <TableRow>
@@ -39,6 +48,14 @@ export default async function ProjectsPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
+          {projects.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
+                No projects yet. Create one above, or convert an approved quotation from its own
+                page.
+              </TableCell>
+            </TableRow>
+          )}
           {projects.map((p) => (
             <TableRow key={p.id}>
               <TableCell className="font-medium">
@@ -69,6 +86,7 @@ export default async function ProjectsPage() {
           ))}
         </TableBody>
       </Table>
+      </div>
     </div>
   );
 }

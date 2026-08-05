@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState, type ReactElement } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,7 +33,16 @@ const INDUSTRY_LABEL: Record<string, string> = {
   FOOD_AND_BEVERAGE: "Food & Beverage",
 };
 
-export function NewClientSheet() {
+export function NewClientSheet({
+  trigger,
+  onCreated,
+}: {
+  /** Replaces the default "New Client" button — used when this sheet is opened
+   *  from inside another form (see the new-lead sheet's quick create). */
+  trigger?: ReactElement;
+  /** Fired with the new client's id once it exists, so the opener can select it. */
+  onCreated?: (clientId: string) => void;
+} = {}) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createClient, undefined);
 
@@ -41,15 +50,24 @@ export function NewClientSheet() {
     if (state?.success) {
       toast.success("Client added");
       setOpen(false);
+      if (state.clientId) onCreated?.(state.clientId);
     }
+    // onCreated is intentionally not a dependency: callers pass an inline
+    // closure, and re-running this on every parent render would re-fire the
+    // callback (and the toast) for an already-handled result.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger render={<Button size="sm" />}>
-        <Plus />
-        New Client
-      </SheetTrigger>
+      {trigger ? (
+        <SheetTrigger render={trigger} />
+      ) : (
+        <SheetTrigger render={<Button size="sm" />}>
+          <Plus />
+          New Client
+        </SheetTrigger>
+      )}
       <SheetContent className="sm:max-w-md">
         <SheetHeader>
           <SheetTitle>New client</SheetTitle>

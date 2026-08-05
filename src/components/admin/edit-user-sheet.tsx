@@ -15,15 +15,9 @@ import {
   SheetTrigger,
   SheetClose,
 } from "@/components/ui/sheet";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { PortalAccessSelect } from "@/components/roles/role-fields";
 import { updateUser } from "@/lib/actions/admin";
-import { roleLabel, navSections } from "@/lib/nav";
+import { navSections } from "@/lib/nav";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Pencil } from "lucide-react";
 import type { AccessRole } from "@/generated/prisma/client";
@@ -81,21 +75,13 @@ export function EditUserSheet({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`accessRole-${user.id}`}>Access role</Label>
-            <Select name="accessRole" required defaultValue={user.accessRole}>
-              <SelectTrigger id={`accessRole-${user.id}`} className="w-full">
-                <SelectValue>
-                  {(value: unknown) => roleLabel[value as keyof typeof roleLabel] ?? "Select role"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(roleLabel) as (keyof typeof roleLabel)[]).map((role) => (
-                  <SelectItem key={role} value={role}>
-                    {roleLabel[role]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor={`accessRole-${user.id}`}>Portal access level</Label>
+            <PortalAccessSelect
+              id={`accessRole-${user.id}`}
+              name="accessRole"
+              required
+              defaultValue={user.accessRole}
+            />
           </div>
 
           <div className="flex flex-col gap-1.5">

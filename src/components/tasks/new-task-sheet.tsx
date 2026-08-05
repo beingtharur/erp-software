@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createTask } from "@/lib/actions/me";
+import { createTask } from "@/lib/actions/tasks";
 import { Plus } from "lucide-react";
 
 type AssignableEmployee = { id: string; name: string };
@@ -34,13 +34,21 @@ export function NewTaskSheet({
   currentEmployeeId,
   assignableEmployees = [],
   isManager = false,
+  variant = "personal",
 }: {
   currentEmployeeId?: string;
   assignableEmployees?: AssignableEmployee[];
   isManager?: boolean;
+  /**
+   * Same form, same action — only the framing differs. "personal" is the /me
+   * board ("add something for myself, optionally hand it to someone"); "assign"
+   * is the HRMS console, where handing it to an employee is the point.
+   */
+  variant?: "personal" | "assign";
 }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createTask, undefined);
+  const assigning = variant === "assign";
 
   useEffect(() => {
     if (state?.success) {
@@ -55,13 +63,17 @@ export function NewTaskSheet({
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger render={<Button size="sm" />}>
         <Plus />
-        New Task
+        {assigning ? "Assign Task" : "New Task"}
       </SheetTrigger>
       <SheetContent className="sm:max-w-md">
         <SheetHeader>
-          <SheetTitle>New task</SheetTitle>
+          <SheetTitle>{assigning ? "Assign a task" : "New task"}</SheetTitle>
           <SheetDescription>
-            {isManager ? "Add a task to your board, or assign one to your team." : "Add something to your personal board."}
+            {assigning
+              ? "The employee is notified straight away and sees it under My Tasks."
+              : isManager
+                ? "Add a task to your board, or assign one to your team."
+                : "Add something to your personal board."}
           </SheetDescription>
         </SheetHeader>
         <form action={formAction} className="flex flex-1 flex-col gap-4 overflow-y-auto px-4">
@@ -97,14 +109,21 @@ export function NewTaskSheet({
           {isManager && others.length > 0 && (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="assigneeId">Assign to</Label>
-              <Select name="assigneeId" defaultValue={currentEmployeeId}>
+              <Select
+                name="assigneeId"
+                required={assigning}
+                defaultValue={assigning ? undefined : currentEmployeeId}
+              >
                 <SelectTrigger id="assigneeId" className="w-full">
-                  <SelectValue>
-                    {(value: unknown) =>
-                      value === currentEmployeeId || !value
-                        ? "Myself"
-                        : (others.find((e) => e.id === value)?.name ?? "Myself")
-                    }
+                  <SelectValue placeholder="Select employee">
+                    {(value: unknown) => {
+                      if (!value) return assigning ? "Select employee" : "Myself";
+                      if (value === currentEmployeeId) return "Myself";
+                      return (
+                        others.find((e) => e.id === value)?.name ??
+                        (assigning ? "Select employee" : "Myself")
+                      );
+                    }}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>

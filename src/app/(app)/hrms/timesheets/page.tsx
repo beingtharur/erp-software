@@ -29,6 +29,13 @@ export default async function TimesheetsPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
+          {timesheets.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
+                No time logged yet. Entries appear here once an employee logs hours from My HR.
+              </TableCell>
+            </TableRow>
+          )}
           {timesheets.map((t) => (
             <TableRow key={t.id}>
               <TableCell className="font-medium">{t.employee.name}</TableCell>

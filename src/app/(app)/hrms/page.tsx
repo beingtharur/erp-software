@@ -7,7 +7,17 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { LeaveDecisionButtons } from "@/components/hrms/leave-decision-buttons";
 import { formatDate, initials, titleCase } from "@/lib/format";
-import { Users, UserCheck, Plane, CalendarOff, Wallet } from "lucide-react";
+import {
+  Users,
+  UserCheck,
+  Plane,
+  CalendarOff,
+  Wallet,
+  ListChecks,
+  Clock,
+  AlertTriangle,
+  CheckCircle2,
+} from "lucide-react";
 
 export default async function HrmsOverviewPage() {
   const user = await getCurrentUser();
@@ -43,6 +53,33 @@ export default async function HrmsOverviewPage() {
           sub="this month"
           icon={Wallet}
           tone={data.pendingPayroll > 0 ? "warning" : "default"}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <KpiCard
+          label="Total Tasks"
+          value={String(data.taskStats.total)}
+          sub="across the org"
+          icon={ListChecks}
+        />
+        <KpiCard
+          label="Pending Tasks"
+          value={String(data.taskStats.pending)}
+          icon={Clock}
+          tone={data.taskStats.pending > 0 ? "warning" : "default"}
+        />
+        <KpiCard
+          label="Overdue Tasks"
+          value={String(data.taskStats.overdue)}
+          icon={AlertTriangle}
+          tone={data.taskStats.overdue > 0 ? "danger" : "default"}
+        />
+        <KpiCard
+          label="Completed Today"
+          value={String(data.taskStats.completedToday)}
+          icon={CheckCircle2}
+          tone="success"
         />
       </div>
 

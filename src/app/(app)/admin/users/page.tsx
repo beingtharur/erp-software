@@ -13,7 +13,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { NewUserSheet } from "@/components/admin/new-user-sheet";
 import { EditUserSheet } from "@/components/admin/edit-user-sheet";
 import { UserRoleSelect, RevokeAccessButton } from "@/components/admin/user-row-actions";
-import { formatDate, initials, titleCase } from "@/lib/format";
+import { formatDate, initials } from "@/lib/format";
+import { employeeRoleName } from "@/lib/roles";
 
 export default async function AdminUsersPage() {
   await requireRole(["ADMIN"]);
@@ -27,7 +28,10 @@ export default async function AdminUsersPage() {
 
   return (
     <>
-      <SiteHeader title="User & Role Management" description="Portal access and access roles" />
+      <SiteHeader
+        title="User & Role Management"
+        description="Portal logins and the access level each one carries"
+      />
       <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
@@ -42,9 +46,9 @@ export default async function AdminUsersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>User</TableHead>
-                <TableHead>Employee role</TableHead>
+                <TableHead>Job title</TableHead>
                 <TableHead>Department</TableHead>
-                <TableHead>Access role</TableHead>
+                <TableHead>Portal access level</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -68,7 +72,7 @@ export default async function AdminUsersPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {user.employee ? titleCase(user.employee.role) : "—"}
+                    {user.employee ? employeeRoleName(user.employee.role) : "—"}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {user.employee?.department ?? "—"}

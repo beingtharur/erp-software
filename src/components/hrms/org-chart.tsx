@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { initials, titleCase } from "@/lib/format";
+import { initials } from "@/lib/format";
+import { employeeRoleName } from "@/lib/roles";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 export type OrgNode = {
@@ -41,7 +42,7 @@ function OrgChartNode({ node, depth }: { node: OrgNode; depth: number }) {
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium leading-none">{node.name}</p>
           <p className="mt-1 truncate text-xs text-muted-foreground">
-            {titleCase(node.role)} · {node.department}
+            {employeeRoleName(node.role)} · {node.department}
           </p>
         </div>
         {hasChildren && (

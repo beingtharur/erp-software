@@ -15,30 +15,14 @@ import {
   SheetTrigger,
   SheetClose,
 } from "@/components/ui/sheet";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { JobTitleSelect, PortalAccessSelect } from "@/components/roles/role-fields";
 import { createEmployee } from "@/lib/actions/hrms";
-import { roleLabel } from "@/lib/nav";
 import { Plus } from "lucide-react";
-
-const EMPLOYEE_ROLE_LABEL: Record<string, string> = {
-  INSTALLATION_CREW: "Installation Crew",
-  TECHNICIAN: "Technician",
-  SALES_REP: "Sales Rep",
-  ENGINEER: "Engineer",
-  PROJECT_MANAGER: "Project Manager",
-  ADMIN: "Admin",
-  HR: "HR",
-  FINANCE: "Finance",
-};
+import type { EmployeeRole } from "@/generated/prisma/client";
 
 export function NewEmployeeSheet() {
   const [open, setOpen] = useState(false);
+  const [jobTitle, setJobTitle] = useState<EmployeeRole>("ENGINEER");
   const [state, formAction, pending] = useActionState(createEmployee, undefined);
 
   useEffect(() => {
@@ -67,24 +51,8 @@ export function NewEmployeeSheet() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="role">Role</Label>
-              <Select name="role" required defaultValue="ENGINEER">
-                <SelectTrigger id="role" className="w-full">
-                  <SelectValue placeholder="Role">
-                    {(value: unknown) => EMPLOYEE_ROLE_LABEL[value as string] ?? "Engineer"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="INSTALLATION_CREW">Installation Crew</SelectItem>
-                  <SelectItem value="TECHNICIAN">Technician</SelectItem>
-                  <SelectItem value="SALES_REP">Sales Rep</SelectItem>
-                  <SelectItem value="ENGINEER">Engineer</SelectItem>
-                  <SelectItem value="PROJECT_MANAGER">Project Manager</SelectItem>
-                  <SelectItem value="ADMIN">Admin</SelectItem>
-                  <SelectItem value="HR">HR</SelectItem>
-                  <SelectItem value="FINANCE">Finance</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="role">Job title</Label>
+              <JobTitleSelect id="role" required value={jobTitle} onValueChange={setJobTitle} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="department">Department</Label>
@@ -114,21 +82,8 @@ export function NewEmployeeSheet() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="accessRole">Access role</Label>
-            <Select name="accessRole" required>
-              <SelectTrigger id="accessRole" className="w-full">
-                <SelectValue placeholder="Select role">
-                  {(value: unknown) => roleLabel[value as keyof typeof roleLabel] ?? "Select role"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(roleLabel) as (keyof typeof roleLabel)[]).map((role) => (
-                  <SelectItem key={role} value={role}>
-                    {roleLabel[role]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="accessRole">Portal access level</Label>
+            <PortalAccessSelect id="accessRole" required suggestedFor={jobTitle} />
             <p className="text-xs text-muted-foreground">
               A portal login is created automatically with temporary password{" "}
               <span className="font-mono">demo123</span>.

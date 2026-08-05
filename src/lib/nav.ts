@@ -21,6 +21,7 @@ import {
   LifeBuoy,
   Receipt,
   PiggyBank,
+  ListChecks,
 } from "lucide-react";
 import type { AccessRole } from "@/generated/prisma/client";
 
@@ -64,8 +65,9 @@ export const navSections: NavSection[] = [
       { title: "Employees", href: "/hrms/employees", icon: Users },
       { title: "Attendance", href: "/hrms/attendance", icon: CalendarDays },
       { title: "Leave", href: "/hrms/leave", icon: Plane },
-      { title: "Payroll", href: "/hrms/payroll", icon: Wallet },
       { title: "Timesheets", href: "/hrms/timesheets", icon: Clock },
+      { title: "Tasks", href: "/hrms/tasks", icon: ListChecks },
+      { title: "Payroll", href: "/hrms/payroll", icon: Wallet },
     ],
   },
   {

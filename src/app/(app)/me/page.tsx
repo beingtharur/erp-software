@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { SiteHeader } from "@/components/layout/site-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,8 +10,6 @@ import {
   getMyAttendanceToday,
   getMyLeaveRequests,
   getMyTimesheets,
-  getMyTasks,
-  getTasksAssignedByMe,
   getIsManager,
   getMyDailySummaries,
   getTodaysSummary,
@@ -18,14 +17,16 @@ import {
   getProjectOptions,
   getMySiteVisits,
 } from "@/lib/queries/me";
+import { getMyTasks, getTasksAssignedByMe } from "@/lib/queries/tasks";
 import { getMyExpenseClaims } from "@/lib/queries/finance";
 import { getAssignableEmployees } from "@/lib/queries/crm";
 import { formatDate, formatDateTime, formatINR, initials, titleCase } from "@/lib/format";
+import { employeeRoleName } from "@/lib/roles";
 import { ApplyLeaveSheet } from "@/components/me/apply-leave-sheet";
 import { LogTimesheetSheet } from "@/components/me/log-timesheet-sheet";
-import { NewTaskSheet } from "@/components/me/new-task-sheet";
-import { TaskBoard } from "@/components/me/task-board";
-import { TaskDetailSheet } from "@/components/me/task-detail-sheet";
+import { NewTaskSheet } from "@/components/tasks/new-task-sheet";
+import { TaskBoard } from "@/components/tasks/task-board";
+import { TaskDetailSheet } from "@/components/tasks/task-detail-sheet";
 import { NewExpenseClaimSheet } from "@/components/me/new-expense-claim-sheet";
 import { AttendanceCheckButton } from "@/components/me/attendance-check-button";
 import { DailySummaryForm } from "@/components/me/daily-summary-form";
@@ -65,7 +66,7 @@ export default async function MyHrPage() {
     tasks,
     projects,
     expenseClaims,
-    isManager,
+    isManagerByReports,
     assignableEmployees,
     todaysSummary,
     myDailySummaries,
@@ -86,6 +87,13 @@ export default async function MyHrPage() {
         getMySiteVisits(employeeId),
       ])
     : [[], null, [], [], [], [], [], false, [], null, [], []];
+
+  // ADMIN can always assign tasks org-wide, matching their unrestricted
+  // assignee access everywhere else (helpdesk, site visits, projects) — not
+  // gated behind Employee.reportingToId like other managers, since that field
+  // has no write path in a brand-new org until someone uses updateEmployee to
+  // set up the org chart.
+  const isManager = user.accessRole === "ADMIN" || isManagerByReports;
 
   const [assignedTasks, teamSummaries] = employeeId && isManager
     ? await Promise.all([getTasksAssignedByMe(employeeId), getTeamDailySummaries(employeeId)])
@@ -122,7 +130,9 @@ export default async function MyHrPage() {
             <div>
               <p className="font-medium">{user.employee?.name ?? user.email}</p>
               <p className="text-sm text-muted-foreground">
-                {user.employee ? `${titleCase(user.employee.role)} · ${user.employee.department}` : "—"}
+                {user.employee
+                  ? `${employeeRoleName(user.employee.role)} · ${user.employee.department}`
+                  : "—"}
               </p>
             </div>
           </CardContent>
@@ -319,8 +329,17 @@ export default async function MyHrPage() {
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-semibold">My Tasks</h2>
-              <p className="text-xs text-muted-foreground">Your personal board</p>
+              <h2 className="text-sm font-semibold">
+                <Link href="/me/tasks" className="hover:underline">
+                  My Tasks
+                </Link>
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Assigned to you and your own to-dos ·{" "}
+                <Link href="/me/tasks" className="font-medium text-primary hover:underline">
+                  open the full board
+                </Link>
+              </p>
             </div>
             <NewTaskSheet
               currentEmployeeId={employeeId ?? undefined}

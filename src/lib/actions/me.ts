@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/dal";
-import { notifyRole } from "@/lib/notify";
+import { notifyEmployee, notifyRole } from "@/lib/notify";
 import { titleCase } from "@/lib/format";
 import type { FormActionState } from "@/lib/actions/crm";
 
@@ -131,119 +131,6 @@ export async function applyLeave(
   return { success: true };
 }
 
-export async function createTask(
-  _prevState: FormActionState,
-  formData: FormData
-): Promise<FormActionState> {
-  const user = await getCurrentUser();
-  if (!user.employeeId) {
-    return { error: "No employee record linked to this account." };
-  }
-  const organizationId = user.organizationId!;
-
-  const title = String(formData.get("title") ?? "").trim();
-  const description = String(formData.get("description") ?? "").trim();
-  const dueDate = String(formData.get("dueDate") ?? "");
-  const priority = String(formData.get("priority") ?? "MEDIUM");
-  const assigneeIdRaw = String(formData.get("assigneeId") ?? "");
-
-  if (!title) {
-    return { error: "Give the task a title." };
-  }
-
-  let employeeId = user.employeeId;
-  let assignedById: string | null = null;
-
-  if (assigneeIdRaw && assigneeIdRaw !== user.employeeId) {
-    // Anyone with at least one direct report can assign across the org — this
-    // reuses the existing reportingTo hierarchy rather than a new permission model.
-    const directReportCount = await prisma.employee.count({
-      where: { reportingToId: user.employeeId },
-    });
-    if (directReportCount === 0) {
-      return { error: "Only managers can assign tasks to other employees." };
-    }
-    const assignee = await prisma.employee.findFirst({ where: { id: assigneeIdRaw, organizationId } });
-    if (!assignee) {
-      return { error: "Assignee not found." };
-    }
-    employeeId = assignee.id;
-    assignedById = user.employeeId;
-  }
-
-  await prisma.personalTask.create({
-    data: {
-      employeeId,
-      assignedById,
-      title,
-      description: description || null,
-      priority: priority as never,
-      dueDate: dueDate ? new Date(dueDate) : null,
-    },
-  });
-
-  revalidatePath("/me");
-  return { success: true };
-}
-
-export async function updateTaskStatus(taskId: string, status: "TODO" | "IN_PROGRESS" | "DONE") {
-  const user = await getCurrentUser();
-  const task = await prisma.personalTask.findUnique({ where: { id: taskId } });
-  if (!task || task.employeeId !== user.employeeId) {
-    throw new Error("Not authorized to update this task");
-  }
-  await prisma.personalTask.update({
-    where: { id: taskId },
-    data: { status, isBlocked: status === "DONE" ? false : task.isBlocked },
-  });
-  revalidatePath("/me");
-}
-
-export async function deleteTask(taskId: string) {
-  const user = await getCurrentUser();
-  const task = await prisma.personalTask.findUnique({ where: { id: taskId } });
-  if (!task || (task.employeeId !== user.employeeId && task.assignedById !== user.employeeId)) {
-    throw new Error("Not authorized to delete this task");
-  }
-  await prisma.personalTask.delete({ where: { id: taskId } });
-  revalidatePath("/me");
-}
-
-export async function setTaskBlocked(taskId: string, isBlocked: boolean, blockerNote: string) {
-  const user = await getCurrentUser();
-  const task = await prisma.personalTask.findUnique({ where: { id: taskId } });
-  if (!task || task.employeeId !== user.employeeId) {
-    throw new Error("Not authorized to update this task");
-  }
-  await prisma.personalTask.update({
-    where: { id: taskId },
-    data: { isBlocked, blockerNote: isBlocked ? blockerNote.trim() || null : null },
-  });
-  revalidatePath("/me");
-}
-
-export async function addTaskComment(taskId: string, body: string) {
-  const user = await getCurrentUser();
-  if (!user.employeeId) {
-    throw new Error("No employee record linked to this account.");
-  }
-  const trimmed = body.trim();
-  if (!trimmed) {
-    throw new Error("Comment can't be empty.");
-  }
-
-  const task = await prisma.personalTask.findFirst({
-    where: { id: taskId, employee: { organizationId: user.organizationId! } },
-  });
-  if (!task || (task.employeeId !== user.employeeId && task.assignedById !== user.employeeId)) {
-    throw new Error("Not authorized to comment on this task");
-  }
-
-  await prisma.taskComment.create({
-    data: { taskId, authorId: user.employeeId, body: trimmed },
-  });
-  revalidatePath("/me");
-}
 
 export async function submitDailySummary(
   _prevState: FormActionState,

@@ -8,6 +8,7 @@ export async function getFieldMapData(organizationId: string) {
         role: { in: ["INSTALLATION_CREW", "TECHNICIAN", "SALES_REP"] },
         status: "ACTIVE",
         organizationId,
+        deletedAt: null,
       },
       include: {
         locationPings: { orderBy: { timestamp: "desc" }, take: 1, include: { geofence: true } },
@@ -21,27 +22,30 @@ export async function getFieldMapData(organizationId: string) {
 
   const activeVisitByEmployee = new Map(activeVisits.map((v) => [v.employeeId, v]));
 
-  const reps = fieldEmployees
-    .map((emp) => {
-      const ping = emp.locationPings[0];
-      if (!ping) return null;
-      const activeVisit = activeVisitByEmployee.get(emp.id);
-      return {
-        id: emp.id,
-        name: emp.name,
-        role: emp.role,
-        department: emp.department,
-        latitude: ping.latitude,
-        longitude: ping.longitude,
-        geofenceId: ping.geofenceId,
-        geofenceName: ping.geofence?.name ?? null,
-        isCheckedIn: Boolean(activeVisit),
-        checkInTime: activeVisit?.checkInTime ?? null,
-        visitPurpose: activeVisit?.purpose ?? null,
-        isDeviceGps: ping.isDeviceGps,
-      };
-    })
-    .filter((r): r is NonNullable<typeof r> => r !== null);
+  // Previously an employee with zero LocationPing rows ever was filtered out
+  // entirely — invisible everywhere on this page, including the "Off Site"
+  // headcount list, until their first check-in. They now still appear (with
+  // no map marker, since there's no coordinate to place one at) so an admin
+  // auditing field headcount doesn't see someone silently missing.
+  const reps = fieldEmployees.map((emp) => {
+    const ping = emp.locationPings[0];
+    const activeVisit = activeVisitByEmployee.get(emp.id);
+    return {
+      id: emp.id,
+      name: emp.name,
+      role: emp.role,
+      department: emp.department,
+      latitude: ping?.latitude ?? null,
+      longitude: ping?.longitude ?? null,
+      geofenceId: ping?.geofenceId ?? null,
+      geofenceName: ping?.geofence?.name ?? null,
+      isCheckedIn: Boolean(activeVisit),
+      checkInTime: activeVisit?.checkInTime ?? null,
+      visitPurpose: activeVisit?.purpose ?? null,
+      isDeviceGps: ping?.isDeviceGps ?? false,
+      hasCheckedInEver: Boolean(ping),
+    };
+  });
 
   return {
     geofences: geofences.map((g) => ({

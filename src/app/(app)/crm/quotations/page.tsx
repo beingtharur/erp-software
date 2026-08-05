@@ -42,6 +42,13 @@ export default async function QuotationsPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
+          {quotations.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={8} className="text-center text-sm text-muted-foreground">
+                No quotations yet. Create your first one above.
+              </TableCell>
+            </TableRow>
+          )}
           {quotations.map((q) => (
             <TableRow key={q.id}>
               <TableCell className="font-medium">

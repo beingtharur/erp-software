@@ -5,10 +5,10 @@ import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { updateTaskStatus, deleteTask } from "@/lib/actions/me";
+import { updateTaskStatus, deleteTask } from "@/lib/actions/tasks";
 import { formatDate } from "@/lib/format";
 import { ArrowRight, ArrowLeft, Trash2 } from "lucide-react";
-import { TaskDetailSheet, type TaskDetail } from "@/components/me/task-detail-sheet";
+import { TaskDetailSheet, type TaskDetail } from "@/components/tasks/task-detail-sheet";
 
 type TaskStatus = "TODO" | "IN_PROGRESS" | "DONE";
 

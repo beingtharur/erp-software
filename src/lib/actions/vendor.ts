@@ -7,34 +7,91 @@ import { notifyRole } from "@/lib/notify";
 import { formatINR } from "@/lib/format";
 import { requestApproval } from "@/lib/approvals";
 import { withUniqueCodeRetry } from "@/lib/sequence";
+import { saveFile } from "@/lib/storage";
 import { PO_STATUS_TRANSITIONS, isValidTransition, type PoStatus } from "@/lib/status-transitions";
 import type { FormActionState } from "@/lib/actions/crm";
 
-export async function markPaymentPaid(paymentId: string, method: string) {
-  await requireRole(["ADMIN", "PROCUREMENT"]);
-  const user = await getCurrentUser();
-  const organizationId = user.organizationId!;
+const MAX_PROOF_SIZE = 10 * 1024 * 1024; // 10MB
 
-  const existing = await prisma.vendorPayment.findFirst({
-    where: { id: paymentId, vendor: { organizationId } },
-  });
-  if (!existing) {
-    throw new Error("Payment not found");
+// Replaces the old markPaymentPaid, which flipped a VendorPayment straight to
+// PAID from a single click — no reference, no proof, no check that the
+// confirmer differed from whoever created the PO. This submits evidence and
+// routes through the generic Approval Engine (decideApproval's
+// PAYMENT_CONFIRMATION case) instead of writing PAID directly, so a second
+// admin — never the requester themselves, enforced in decideApproval — has to
+// review it. Mirrors the existing subscription-payment flow (submitPayment ->
+// platform-admin review) rather than inventing a separate mechanism.
+export async function requestPaymentConfirmation(
+  _prevState: FormActionState,
+  formData: FormData
+): Promise<FormActionState> {
+  await requireRole(["ADMIN", "PROCUREMENT"]);
+  const requester = await getCurrentUser();
+  const organizationId = requester.organizationId!;
+  if (!requester.employeeId) {
+    return { error: "No employee record linked to this account." };
   }
 
-  const payment = await prisma.vendorPayment.update({
-    where: { id: paymentId },
-    data: { status: "PAID", paidDate: new Date(), method },
-    include: { vendor: true },
+  const paymentId = String(formData.get("paymentId") ?? "");
+  const referenceNumber = String(formData.get("referenceNumber") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim() || undefined;
+  const proof = formData.get("proof");
+
+  if (!paymentId || !referenceNumber) {
+    return { error: "Enter the payment reference / UTR number." };
+  }
+
+  const payment = await prisma.vendorPayment.findFirst({
+    where: { id: paymentId, vendor: { organizationId } },
   });
+  if (!payment) {
+    return { error: "Payment not found." };
+  }
+  if (payment.status !== "PENDING") {
+    return { error: "Only pending payments can be submitted for confirmation." };
+  }
+
+  const alreadyRequested = await prisma.approvalRequest.findFirst({
+    where: { entityType: "PAYMENT_CONFIRMATION", entityId: paymentId, status: "PENDING" },
+  });
+  if (alreadyRequested) {
+    return { error: "This payment is already awaiting confirmation." };
+  }
+
+  let proofUrl: string | undefined;
+  let proofKey: string | undefined;
+  if (proof instanceof File && proof.size > 0) {
+    if (proof.size > MAX_PROOF_SIZE) {
+      return { error: "Proof file is too large (max 10MB)." };
+    }
+    const { url, storageKey } = await saveFile(proof, `vendor-payments/${organizationId}`);
+    proofUrl = url;
+    proofKey = storageKey;
+  }
+
+  await prisma.vendorPayment.update({
+    where: { id: paymentId },
+    data: { referenceNumber, proofUrl, proofKey, method: "NEFT" },
+  });
+
+  await requestApproval({
+    entityType: "PAYMENT_CONFIRMATION",
+    entityId: paymentId,
+    requestedById: requester.employeeId,
+    approverRole: "ADMIN",
+    note: notes,
+  });
+
   await notifyRole(
     "ADMIN",
     organizationId,
-    `Payment of ${formatINR(payment.amount)} marked paid to ${payment.vendor.name}.`,
-    "/vendors/payments"
+    `Payment of ${formatINR(payment.amount)} (ref ${referenceNumber}) is awaiting confirmation.`,
+    "/approvals"
   );
+
   revalidatePath("/vendors/payments");
-  revalidatePath("/");
+  revalidatePath("/approvals");
+  return { success: true };
 }
 
 export async function updateVendorRating(vendorId: string, rating: number) {
@@ -124,6 +181,9 @@ export async function createPurchaseOrder(
   await requireRole(["ADMIN", "PROCUREMENT"]);
   const requester = await getCurrentUser();
   const organizationId = requester.organizationId!;
+  if (!requester.employeeId) {
+    return { error: "No employee record linked to this account." };
+  }
 
   const vendorId = String(formData.get("vendorId") ?? "");
   const itemsDescription = String(formData.get("itemsDescription") ?? "").trim();
@@ -161,14 +221,12 @@ export async function createPurchaseOrder(
     });
   });
 
-  if (requester.employeeId) {
-    await requestApproval({
-      entityType: "PURCHASE_ORDER",
-      entityId: po.id,
-      requestedById: requester.employeeId,
-      approverRole: "ADMIN",
-    });
-  }
+  await requestApproval({
+    entityType: "PURCHASE_ORDER",
+    entityId: po.id,
+    requestedById: requester.employeeId,
+    approverRole: "ADMIN",
+  });
 
   await notifyRole(
     "ADMIN",
@@ -227,6 +285,27 @@ export async function updatePurchaseOrder(
     return { error: `Can't move a purchase order from ${existing.status} directly to ${status}.` };
   }
 
+  // Financial immutability: once a PO has left DRAFT (i.e. it's been through
+  // approval and turned into a real commitment — decideApproval already
+  // created a VendorPayment for it), the commercial terms are locked. Editing
+  // vendor/items/amount/dates after that point would silently change what was
+  // actually approved and paid against. Cancel + recreate is the correct path
+  // for a genuine mistake, matching how the rest of the app already handles
+  // corrections (e.g. expense claims: reject and resubmit, not edit-in-place).
+  if (existing.status !== "DRAFT") {
+    const unchanged =
+      vendorId === existing.vendorId &&
+      itemsDescription === existing.itemsDescription &&
+      amount === existing.amount &&
+      new Date(orderDate).getTime() === existing.orderDate.getTime() &&
+      new Date(expectedDelivery).getTime() === existing.expectedDelivery.getTime();
+    if (!unchanged) {
+      return {
+        error: "Vendor, items, amount, and dates can't be changed once a purchase order has left Draft. Cancel it and create a new one instead.",
+      };
+    }
+  }
+
   await prisma.purchaseOrder.update({
     where: { id: poId },
     data: {
@@ -242,6 +321,38 @@ export async function updatePurchaseOrder(
   revalidatePath("/vendors/purchase-orders");
   revalidatePath(`/vendors/${vendorId}`);
   return { success: true };
+}
+
+// The only way to change a PO's commercial terms after DRAFT is to cancel it
+// (see the immutability guard in updatePurchaseOrder above) — this is that
+// escape hatch. Reuses the existing PO_STATUS_TRANSITIONS state machine
+// (SENT/CONFIRMED -> CANCELLED are already legal transitions there) rather
+// than adding a parallel one.
+export async function cancelPurchaseOrder(poId: string) {
+  await requireRole(["ADMIN", "PROCUREMENT"]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const existing = await prisma.purchaseOrder.findFirst({
+    where: { id: poId, vendor: { organizationId } },
+  });
+  if (!existing) {
+    throw new Error("Purchase order not found");
+  }
+  if (!isValidTransition(PO_STATUS_TRANSITIONS, existing.status as PoStatus, "CANCELLED")) {
+    throw new Error(`Can't cancel a purchase order that's already ${existing.status}.`);
+  }
+
+  const result = await prisma.purchaseOrder.updateMany({
+    where: { id: poId, status: existing.status },
+    data: { status: "CANCELLED" },
+  });
+  if (result.count === 0) {
+    throw new Error("Purchase order status changed — refresh and try again.");
+  }
+
+  revalidatePath("/vendors/purchase-orders");
+  revalidatePath(`/vendors/${existing.vendorId}`);
 }
 
 export async function deletePurchaseOrder(poId: string) {
@@ -276,6 +387,9 @@ export async function duplicatePurchaseOrder(poId: string) {
   await requireRole(["ADMIN", "PROCUREMENT"]);
   const user = await getCurrentUser();
   const organizationId = user.organizationId!;
+  if (!user.employeeId) {
+    throw new Error("No employee record linked to this account.");
+  }
 
   const source = await prisma.purchaseOrder.findFirst({
     where: { id: poId, vendor: { organizationId } },
@@ -308,14 +422,12 @@ export async function duplicatePurchaseOrder(poId: string) {
     });
   });
 
-  if (user.employeeId) {
-    await requestApproval({
-      entityType: "PURCHASE_ORDER",
-      entityId: po.id,
-      requestedById: user.employeeId,
-      approverRole: "ADMIN",
-    });
-  }
+  await requestApproval({
+    entityType: "PURCHASE_ORDER",
+    entityId: po.id,
+    requestedById: user.employeeId,
+    approverRole: "ADMIN",
+  });
 
   await notifyRole(
     "ADMIN",

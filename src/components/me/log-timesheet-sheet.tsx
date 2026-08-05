@@ -57,20 +57,27 @@ export function LogTimesheetSheet({
         <form action={formAction} className="flex flex-1 flex-col gap-4 overflow-y-auto px-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="projectId">Project</Label>
-            <Select name="projectId">
-              <SelectTrigger id="projectId" className="w-full">
-                <SelectValue placeholder="Select project (optional)">
-                  {(value: unknown) => projects.find((p) => p.id === value)?.name ?? "Select project (optional)"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {projects.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No projects yet — ask your admin to create one under CRM &gt; Projects. You can still
+                log hours without a project.
+              </p>
+            ) : (
+              <Select name="projectId">
+                <SelectTrigger id="projectId" className="w-full">
+                  <SelectValue placeholder="Select project (optional)">
+                    {(value: unknown) => projects.find((p) => p.id === value)?.name ?? "Select project (optional)"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">

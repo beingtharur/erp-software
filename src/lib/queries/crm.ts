@@ -19,7 +19,7 @@ export async function getClientOptions(organizationId: string) {
 
 export async function getSalesReps(organizationId: string) {
   return prisma.employee.findMany({
-    where: { role: "SALES_REP", status: "ACTIVE", organizationId },
+    where: { role: "SALES_REP", status: "ACTIVE", organizationId, deletedAt: null },
     orderBy: { name: "asc" },
     select: { id: true, name: true },
   });
@@ -123,7 +123,7 @@ export async function getProjectDetail(id: string, organizationId: string) {
 
 export async function getAssignableEmployees(organizationId: string) {
   return prisma.employee.findMany({
-    where: { status: "ACTIVE", organizationId },
+    where: { status: "ACTIVE", organizationId, deletedAt: null },
     orderBy: { name: "asc" },
     select: { id: true, name: true },
   });

@@ -3,10 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { requireRole, getCurrentUser } from "@/lib/dal";
-import { notifyRole, notifyEmployee, notifyEmployeeRole } from "@/lib/notify";
+import { notifyRole, notifyEmployee } from "@/lib/notify";
 import { formatINR, formatDate, titleCase } from "@/lib/format";
 import { saveFile } from "@/lib/storage";
 import { withUniqueCodeRetry } from "@/lib/sequence";
+import { initializeProject, parseProjectFields } from "@/lib/projects";
 import {
   LEAD_STAGE_TRANSITIONS,
   QUOTATION_STATUS_TRANSITIONS,
@@ -28,10 +29,16 @@ const VALID_STAGES = [
   "LOST",
 ] as const;
 
+// Superset of FormActionState: the new client's id is echoed back so a caller
+// that created the client mid-flow (the "quick create" inside the new-lead
+// sheet) can select it straight away instead of making the user hunt for it in
+// the refreshed dropdown.
+export type CreateClientState = { error?: string; success?: boolean; clientId?: string } | undefined;
+
 export async function createClient(
-  _prevState: FormActionState,
+  _prevState: CreateClientState,
   formData: FormData
-): Promise<FormActionState> {
+): Promise<CreateClientState> {
   await requireRole(["ADMIN", "SALES"]);
   const user = await getCurrentUser();
   const organizationId = user.organizationId!;
@@ -53,7 +60,7 @@ export async function createClient(
     return { error: "Please fill in all fields." };
   }
 
-  await prisma.client.create({
+  const client = await prisma.client.create({
     data: {
       name,
       industry: industry as never,
@@ -72,7 +79,7 @@ export async function createClient(
 
   revalidatePath("/crm/clients");
   revalidatePath("/crm");
-  return { success: true };
+  return { success: true, clientId: client.id };
 }
 
 export async function createLead(
@@ -315,18 +322,13 @@ export async function convertQuotationToProject(
   const organizationId = user.organizationId!;
 
   const quotationId = String(formData.get("quotationId") ?? "");
-  const name = String(formData.get("name") ?? "").trim();
-  const description = String(formData.get("description") ?? "").trim();
-  const productLine = String(formData.get("productLine") ?? "");
-  const startDate = String(formData.get("startDate") ?? "");
-  const targetEndDate = String(formData.get("targetEndDate") ?? "");
-  const value = Number(formData.get("value"));
-
-  if (!quotationId || !name || !productLine || !startDate || !targetEndDate) {
+  if (!quotationId) {
     return { error: "Please fill in all required fields." };
   }
-  if (!Number.isFinite(value) || value <= 0) {
-    return { error: "Enter a valid project value." };
+
+  const parsed = parseProjectFields(formData);
+  if (!parsed.ok) {
+    return { error: parsed.error };
   }
 
   const quotation = await prisma.quotation.findFirst({
@@ -343,43 +345,60 @@ export async function convertQuotationToProject(
     return { error: "Project already created." };
   }
 
-  const project = await prisma.project.create({
-    data: {
-      name,
-      description: description || null,
-      clientId: quotation.clientId,
-      leadId: quotation.leadId,
+  await initializeProject({
+    organizationId,
+    actorUserId: user.id,
+    client: quotation.client,
+    fields: parsed.fields,
+    origin: {
+      kind: "quotation",
       quotationId: quotation.id,
-      productLine: productLine as never,
-      industry: quotation.client.industry,
-      value,
-      startDate: new Date(startDate),
-      targetEndDate: new Date(targetEndDate),
+      quoteNumber: quotation.quoteNumber,
+      leadId: quotation.leadId,
     },
   });
 
-  await Promise.all([
-    notifyEmployeeRole(
-      "PROJECT_MANAGER",
-      organizationId,
-      `New project "${name}" created from quotation ${quotation.quoteNumber} — ${quotation.client.name}.`,
-      `/crm/projects/${project.id}`
-    ),
-    notifyRole(
-      "ADMIN",
-      organizationId,
-      `New project "${name}" created from quotation ${quotation.quoteNumber} — ${quotation.client.name}.`,
-      `/crm/projects/${project.id}`
-    ),
-  ]);
-
+  // Only the quotation-side pages are conversion-specific — everything the two
+  // creation paths share is revalidated inside initializeProject.
   revalidatePath(`/crm/quotations/${quotationId}`);
   revalidatePath("/crm/quotations");
-  revalidatePath("/crm/projects");
-  revalidatePath(`/crm/projects/${project.id}`);
-  revalidatePath(`/crm/clients/${quotation.clientId}`);
-  revalidatePath("/crm");
-  revalidatePath("/");
+  return { success: true };
+}
+
+export async function createProject(
+  _prevState: FormActionState,
+  formData: FormData
+): Promise<FormActionState> {
+  await requireRole(["ADMIN", "SALES"]);
+  const user = await getCurrentUser();
+  const organizationId = user.organizationId!;
+
+  const clientId = String(formData.get("clientId") ?? "");
+  if (!clientId) {
+    return { error: "Please fill in all required fields." };
+  }
+
+  const parsed = parseProjectFields(formData);
+  if (!parsed.ok) {
+    return { error: parsed.error };
+  }
+
+  // Project has no organizationId column — it inherits the tenant from its
+  // client, so scoping this lookup is what keeps a forged clientId from
+  // attaching a project to another organization's customer.
+  const client = await prisma.client.findFirst({ where: { id: clientId, organizationId } });
+  if (!client) {
+    return { error: "Client not found." };
+  }
+
+  await initializeProject({
+    organizationId,
+    actorUserId: user.id,
+    client,
+    fields: parsed.fields,
+    origin: { kind: "manual" },
+  });
+
   return { success: true };
 }
 

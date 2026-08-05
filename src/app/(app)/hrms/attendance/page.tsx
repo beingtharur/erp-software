@@ -47,6 +47,14 @@ export default async function AttendancePage() {
             </TableRow>
           </TableHeader>
           <TableBody>
+            {attendance.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
+                  No active employees yet — add someone under Employees and today&apos;s roster will
+                  appear here.
+                </TableCell>
+              </TableRow>
+            )}
             {attendance.map((a) => (
               <TableRow key={a.id}>
                 <TableCell className="font-medium">{a.employee.name}</TableCell>

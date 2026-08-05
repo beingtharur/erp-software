@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatINR } from "@/lib/format";
-import { MarkPaidButton } from "@/components/vendors/mark-paid-button";
+import { ConfirmPaymentSheet } from "@/components/vendors/confirm-payment-sheet";
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive"> = {
   PAID: "default",
@@ -37,6 +37,14 @@ export default async function VendorPaymentsPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
+          {payments.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
+                No payments yet. One is created automatically each time a purchase order is
+                approved.
+              </TableCell>
+            </TableRow>
+          )}
           {payments.map((p) => (
             <TableRow key={p.id}>
               <TableCell className="font-medium">{p.vendor.name}</TableCell>
@@ -50,12 +58,14 @@ export default async function VendorPaymentsPage() {
               <TableCell className="text-right">
                 {p.status === "PAID" ? (
                   <Badge variant={statusVariant[p.status]} className="font-normal">Paid</Badge>
+                ) : p.awaitingConfirmation ? (
+                  <Badge variant="secondary" className="font-normal">Awaiting confirmation</Badge>
                 ) : (
                   <div className="flex items-center justify-end gap-2">
                     <Badge variant={statusVariant[p.status]} className="font-normal">
                       {p.status === "OVERDUE" ? "Overdue" : "Pending"}
                     </Badge>
-                    <MarkPaidButton paymentId={p.id} />
+                    <ConfirmPaymentSheet paymentId={p.id} />
                   </div>
                 )}
               </TableCell>

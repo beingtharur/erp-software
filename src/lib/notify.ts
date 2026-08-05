@@ -34,7 +34,7 @@ export async function notifyEmployeeRole(
   href?: string
 ) {
   const employees = await prisma.employee.findMany({
-    where: { role, organizationId, status: "ACTIVE" },
+    where: { role, organizationId, status: "ACTIVE", deletedAt: null },
     select: { id: true },
   });
   if (employees.length === 0) return;

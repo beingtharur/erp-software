@@ -6,6 +6,8 @@ import { verifyPassword, hashPassword } from "@/lib/password";
 import { createSession, deleteSession } from "@/lib/session";
 import { roleHome, roleSectionAccess } from "@/lib/nav";
 import { PRICING_CONFIG } from "@/lib/billing/pricing-config";
+import { withUniqueCodeRetry } from "@/lib/sequence";
+import { logAudit } from "@/lib/audit";
 
 export type LoginState = { error?: string } | undefined;
 
@@ -55,19 +57,27 @@ function slugify(value: string): string {
 
 // Public self-registration: every brand-new organization gets exactly one
 // 5-day trial (Subscription.organizationId is unique, so there's no code path
-// that grants a second trial to an existing org). No Employee record is
-// created — the first admin is a portal-only user, same as User.employeeId
-// being optional everywhere else in the app.
+// that grants a second trial to an existing org). The admin's Employee record
+// is auto-created in the same transaction (role ADMIN, joining today) using the
+// same employeeCode/withUniqueCodeRetry pattern as every other employee-creation
+// path (createEmployee, createSelfEmployeeProfile) — so Attendance/Leave/
+// Timesheets/Payroll/HR dashboards work immediately, with no separate "complete
+// your profile" step required for the one field (name) this form didn't
+// previously collect. department/phone/baseLocation are left blank rather than
+// guessed; they're editable later via updateEmployee. This is intentionally
+// reversible: deleteEmployee soft-deletes (see Employee.deletedAt), so an admin
+// who never wants an HR profile can remove it after the fact.
 export async function registerOrganization(
   _prevState: RegisterState,
   formData: FormData
 ): Promise<RegisterState> {
   const orgName = String(formData.get("orgName") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
 
-  if (!orgName || !email || !password) {
+  if (!orgName || !name || !email || !password) {
     return { error: "Please fill in all fields." };
   }
   if (password.length < 6) {
@@ -94,35 +104,67 @@ export async function registerOrganization(
   const now = new Date();
   const trialEndsAt = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
 
-  const user = await prisma.$transaction(async (tx) => {
-    const organization = await tx.organization.create({ data: { name: orgName, slug } });
-    await tx.subscription.create({
-      data: {
-        organizationId: organization.id,
-        status: "TRIAL",
-        trialStartedAt: now,
-        trialEndsAt,
-        licencedUsers: PRICING_CONFIG.minimumUsers,
-      },
-    });
-    return tx.user.create({
-      data: {
-        email,
-        passwordHash: hash,
-        passwordSalt: salt,
-        accessRole: "ADMIN",
-        organizationId: organization.id,
-        moduleAccess: {
-          create: roleSectionAccess.ADMIN.map((module) => ({ module })),
+  const user = await withUniqueCodeRetry(() =>
+    prisma.$transaction(async (tx) => {
+      const organization = await tx.organization.create({ data: { name: orgName, slug } });
+      await tx.subscription.create({
+        data: {
+          organizationId: organization.id,
+          status: "TRIAL",
+          trialStartedAt: now,
+          trialEndsAt,
+          licencedUsers: PRICING_CONFIG.minimumUsers,
         },
-      },
-    });
+      });
+
+      // employeeCode is globally unique (not scoped per organization) — see the
+      // identical comment in actions/hrms.ts::createEmployee.
+      const count = await tx.employee.count();
+      const employeeCode = `EOS-${String(count + 1).padStart(3, "0")}`;
+      const employee = await tx.employee.create({
+        data: {
+          employeeCode,
+          name,
+          role: "ADMIN",
+          department: "",
+          email,
+          phone: "",
+          dateOfJoining: now,
+          baseLocation: "",
+          avatarSeed: employeeCode,
+          organizationId: organization.id,
+        },
+      });
+
+      return tx.user.create({
+        data: {
+          email,
+          passwordHash: hash,
+          passwordSalt: salt,
+          accessRole: "ADMIN",
+          employeeId: employee.id,
+          organizationId: organization.id,
+          moduleAccess: {
+            create: roleSectionAccess.ADMIN.map((module) => ({ module })),
+          },
+        },
+      });
+    })
+  );
+
+  await logAudit({
+    organizationId: user.organizationId!,
+    actorId: user.id,
+    action: "employee.created",
+    entityType: "Employee",
+    entityId: user.employeeId!,
+    metadata: { source: "registration" },
   });
 
   await createSession({
     userId: user.id,
     accessRole: user.accessRole,
-    name: user.email,
+    name,
     organizationId: user.organizationId,
     isSuperAdmin: false,
   });

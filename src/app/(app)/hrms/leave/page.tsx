@@ -37,6 +37,13 @@ export default async function LeavePage() {
           </TableRow>
         </TableHeader>
         <TableBody>
+          {requests.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
+                No leave requests yet. They appear here once an employee applies from My HR.
+              </TableCell>
+            </TableRow>
+          )}
           {requests.map((leave) => (
             <TableRow key={leave.id}>
               <TableCell className="font-medium">{leave.employee.name}</TableCell>

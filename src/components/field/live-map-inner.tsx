@@ -5,20 +5,22 @@ import { MapContainer, TileLayer, Circle, Marker, Popup, Tooltip } from "react-l
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { formatDateTime } from "@/lib/format";
+import { employeeRoleName } from "@/lib/roles";
 
 export type FieldRep = {
   id: string;
   name: string;
   role: string;
   department: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   geofenceId: string | null;
   geofenceName: string | null;
   isCheckedIn: boolean;
   checkInTime: Date | string | null;
   visitPurpose: string | null;
   isDeviceGps: boolean;
+  hasCheckedInEver?: boolean;
 };
 
 export type FieldGeofence = {
@@ -28,12 +30,6 @@ export type FieldGeofence = {
   latitude: number;
   longitude: number;
   radiusMeters: number;
-};
-
-const roleLabel: Record<string, string> = {
-  INSTALLATION_CREW: "Installation Crew",
-  TECHNICIAN: "Technician",
-  SALES_REP: "Sales Rep",
 };
 
 function jitter(lat: number, lng: number, maxMeters: number) {
@@ -63,7 +59,11 @@ export function LiveMapInner({
   geofences: FieldGeofence[];
 }) {
   const [positions, setPositions] = useState<Record<string, { lat: number; lng: number }>>(() =>
-    Object.fromEntries(reps.map((r) => [r.id, { lat: r.latitude, lng: r.longitude }]))
+    Object.fromEntries(
+      reps
+        .filter((r) => r.latitude !== null && r.longitude !== null)
+        .map((r) => [r.id, { lat: r.latitude as number, lng: r.longitude as number }])
+    )
   );
 
   const geofenceById = useMemo(() => new Map(geofences.map((g) => [g.id, g])), [geofences]);
@@ -73,7 +73,9 @@ export function LiveMapInner({
       setPositions((prev) => {
         const next = { ...prev };
         for (const rep of reps) {
-          if (!rep.isCheckedIn) continue;
+          // Checked-in always implies a real ping exists (check-in creates
+          // one), so latitude/longitude are non-null here in practice.
+          if (!rep.isCheckedIn || rep.latitude === null || rep.longitude === null) continue;
           const zone = rep.geofenceId ? geofenceById.get(rep.geofenceId) : null;
           const anchor = zone
             ? { lat: zone.latitude, lng: zone.longitude }
@@ -131,7 +133,7 @@ export function LiveMapInner({
             <Popup>
               <div className="text-sm">
                 <p className="font-medium">{rep.name}</p>
-                <p className="text-muted-foreground">{roleLabel[rep.role] ?? rep.role}</p>
+                <p className="text-muted-foreground">{employeeRoleName(rep.role)}</p>
                 {rep.isCheckedIn ? (
                   <>
                     {rep.isDeviceGps && (

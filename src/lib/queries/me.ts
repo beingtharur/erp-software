@@ -41,38 +41,12 @@ export async function getMyTimesheets(employeeId: string) {
   });
 }
 
-export async function getMyTasks(employeeId: string) {
-  return prisma.personalTask.findMany({
-    where: { employeeId },
-    orderBy: { createdAt: "desc" },
-    include: {
-      assignedBy: { select: { id: true, name: true } },
-      comments: {
-        orderBy: { createdAt: "asc" },
-        include: { author: { select: { id: true, name: true } } },
-      },
-    },
-  });
-}
-
-export async function getTasksAssignedByMe(employeeId: string) {
-  return prisma.personalTask.findMany({
-    where: { assignedById: employeeId },
-    orderBy: { createdAt: "desc" },
-    include: {
-      employee: { select: { id: true, name: true } },
-      comments: {
-        orderBy: { createdAt: "asc" },
-        include: { author: { select: { id: true, name: true } } },
-      },
-    },
-  });
-}
-
 // "Manager" here means anyone with at least one direct report — matches the
 // existing org-chart hierarchy (Employee.reportingTo) rather than a new role.
 export async function getIsManager(employeeId: string) {
-  const count = await prisma.employee.count({ where: { reportingToId: employeeId } });
+  const count = await prisma.employee.count({
+    where: { reportingToId: employeeId, deletedAt: null },
+  });
   return count > 0;
 }
 

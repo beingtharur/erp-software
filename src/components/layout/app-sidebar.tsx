@@ -27,7 +27,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { navSections, roleSectionAccess, roleLabel } from "@/lib/nav";
 import { logout } from "@/lib/actions/auth";
 import { initials } from "@/lib/format";
-import { Boxes, User, LogOut, ShieldCheck, ClipboardCheck } from "lucide-react";
+import { Boxes, User, LogOut, ShieldCheck, ClipboardCheck, ListChecks } from "lucide-react";
 import type { AccessRole } from "@/generated/prisma/client";
 
 export function AppSidebar({
@@ -72,6 +72,19 @@ export function AppSidebar({
                 >
                   <User />
                   <span>My HR</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              {/* Every role gets a direct route to their own tasks — HRMS's
+                  Tasks console is ADMIN/HR only, and an employee shouldn't have
+                  to know the board lives partway down /me. */}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={pathname === "/me/tasks"}
+                  tooltip="My Tasks"
+                  render={<Link href="/me/tasks" />}
+                >
+                  <ListChecks />
+                  <span>My Tasks</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               {accessRole === "ADMIN" && (

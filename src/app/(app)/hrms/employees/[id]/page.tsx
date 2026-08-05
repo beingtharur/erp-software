@@ -1,10 +1,13 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { getEmployeeDetail } from "@/lib/queries/hrms";
+import { getEmployeeTaskSummary } from "@/lib/queries/tasks";
 import { getCurrentUser } from "@/lib/dal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { formatDate, formatINR, initials, titleCase } from "@/lib/format";
+import { employeeRoleName } from "@/lib/roles";
 import { UploadDocumentSheet } from "@/components/hrms/upload-document-sheet";
 import { DocumentRow } from "@/components/hrms/document-row";
 import { SalaryStructureCard } from "@/components/hrms/salary-structure-card";
@@ -14,6 +17,12 @@ const leaveStatusVariant: Record<string, "default" | "secondary" | "destructive"
   APPROVED: "default",
   PENDING: "secondary",
   REJECTED: "destructive",
+};
+
+const taskStatusVariant: Record<string, "default" | "secondary" | "outline"> = {
+  TODO: "outline",
+  IN_PROGRESS: "secondary",
+  DONE: "default",
 };
 
 export default async function EmployeeDetailPage({
@@ -27,6 +36,7 @@ export default async function EmployeeDetailPage({
 
   if (!employee) notFound();
 
+  const taskSummary = await getEmployeeTaskSummary(employee.id);
   const activeSalaryStructure = employee.salaryStructures.find((s) => s.isActive) ?? null;
 
   return (
@@ -43,7 +53,7 @@ export default async function EmployeeDetailPage({
                 <Badge variant="outline" className="font-normal">{employee.employeeCode}</Badge>
               </div>
               <p className="text-sm text-muted-foreground">
-                {titleCase(employee.role)} · {employee.department}
+                {employeeRoleName(employee.role)} · {employee.department}
               </p>
             </div>
           </div>
@@ -132,6 +142,74 @@ export default async function EmployeeDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-sm">Tasks</CardTitle>
+          <Link
+            href={`/hrms/tasks?employeeId=${employee.id}`}
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            Manage in Tasks →
+          </Link>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Assigned</p>
+              <p className="text-lg font-semibold tabular-nums">{taskSummary.total}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Pending</p>
+              <p className="text-lg font-semibold tabular-nums">{taskSummary.pending}</p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Overdue</p>
+              <p
+                className={`text-lg font-semibold tabular-nums ${
+                  taskSummary.overdue > 0 ? "text-destructive" : ""
+                }`}
+              >
+                {taskSummary.overdue}
+              </p>
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">Completed</p>
+              <p className="text-lg font-semibold tabular-nums">{taskSummary.completed}</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {taskSummary.tasks.length === 0 && (
+              <p className="text-sm text-muted-foreground">No tasks assigned yet.</p>
+            )}
+            {taskSummary.tasks.map((t) => (
+              <div
+                key={t.id}
+                className="flex items-center justify-between gap-3 border-b pb-2 text-sm last:border-0 last:pb-0"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{t.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t.assignedBy ? `Assigned by ${t.assignedBy.name}` : "Self-created"}
+                    {t.dueDate ? ` · Due ${formatDate(t.dueDate)}` : ""}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {t.isBlocked && (
+                    <Badge variant="destructive" className="font-normal">
+                      Blocked
+                    </Badge>
+                  )}
+                  <Badge variant={taskStatusVariant[t.status]} className="font-normal">
+                    {titleCase(t.status)}
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       <SalaryStructureCard
         employeeId={employee.id}

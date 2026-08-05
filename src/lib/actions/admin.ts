@@ -7,6 +7,7 @@ import { hashPassword } from "@/lib/password";
 import { notifyUser } from "@/lib/notify";
 import { roleSectionAccess, navSections } from "@/lib/nav";
 import { withUniqueCodeRetry } from "@/lib/sequence";
+import { logAudit } from "@/lib/audit";
 import type { FormActionState } from "@/lib/actions/crm";
 import type { AccessRole } from "@/generated/prisma/client";
 
@@ -71,7 +72,7 @@ export async function createUserForEmployee(
       return { error: "Please fill in all fields." };
     }
 
-    const alreadyThere = await prisma.employee.findUnique({ where: { email } });
+    const alreadyThere = await prisma.employee.findFirst({ where: { organizationId, email } });
     if (alreadyThere) {
       return { error: "An employee with this email already exists." };
     }
@@ -237,6 +238,17 @@ export async function updateUser(
     ),
   ]);
 
+  if (target.accessRole !== accessRole) {
+    await logAudit({
+      organizationId,
+      actorId: admin.id,
+      action: "user.role_changed",
+      entityType: "User",
+      entityId: userId,
+      metadata: { from: target.accessRole, to: accessRole },
+    });
+  }
+
   revalidatePath("/admin/users");
   return { success: true };
 }
@@ -263,6 +275,15 @@ export async function updateUserRole(userId: string, accessRole: AccessRole) {
       update: {},
     });
   }
+
+  await logAudit({
+    organizationId,
+    actorId: admin.id,
+    action: "user.role_changed",
+    entityType: "User",
+    entityId: userId,
+    metadata: { accessRole },
+  });
 
   revalidatePath("/admin/users");
 }
