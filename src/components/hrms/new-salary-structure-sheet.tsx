@@ -55,11 +55,20 @@ function toDateInputValue(date: Date) {
 export function NewSalaryStructureSheet({
   employeeId,
   current,
+  open: openProp,
+  onOpenChange: onOpenChangeProp,
 }: {
   employeeId: string;
   current?: SalaryStructure | null;
+  // Controlled when opened from the employee row menu, which owns the state
+  // (a dropdown item unmounts as the menu closes, so it can't hold the sheet).
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp : internalOpen;
+  const setOpen = isControlled ? onOpenChangeProp! : setInternalOpen;
   const [state, formAction, pending] = useActionState(createSalaryStructure, undefined);
 
   useEffect(() => {
@@ -71,10 +80,12 @@ export function NewSalaryStructureSheet({
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger render={<Button size="sm" variant="outline" />}>
-        <Plus />
-        {current ? "Update Salary" : "Set Up Salary"}
-      </SheetTrigger>
+      {!isControlled && (
+        <SheetTrigger render={<Button size="sm" variant="outline" />}>
+          <Plus />
+          {current ? "Update Salary" : "Set Up Salary"}
+        </SheetTrigger>
+      )}
       <SheetContent className="sm:max-w-md">
         <SheetHeader>
           <SheetTitle>{current ? "Update salary structure" : "Set up salary structure"}</SheetTitle>

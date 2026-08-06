@@ -72,6 +72,9 @@ export async function getEmployees(organizationId: string) {
     include: {
       _count: { select: { timesheets: true, leaveRequests: true } },
       department: { select: { id: true, name: true } },
+      // The row menu offers "Set up salary" or "Update salary structure"
+      // depending on whether one exists, and prefills the form from it.
+      salaryStructures: { where: { isActive: true }, take: 1 },
     },
   });
 }

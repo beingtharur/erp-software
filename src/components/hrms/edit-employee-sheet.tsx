@@ -35,6 +35,8 @@ export function EditEmployeeSheet({
   employee,
   managerOptions,
   departments,
+  open: openProp,
+  onOpenChange: onOpenChangeProp,
 }: {
   employee: {
     id: string;
@@ -47,8 +49,14 @@ export function EditEmployeeSheet({
   };
   managerOptions: ManagerOption[];
   departments: DepartmentOption[];
+  // Controlled when opened from the row menu, which owns the dropdown state.
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp : internalOpen;
+  const setOpen = isControlled ? onOpenChangeProp! : setInternalOpen;
   const [state, formAction, pending] = useActionState(updateEmployee, undefined);
 
   useEffect(() => {
@@ -62,9 +70,11 @@ export function EditEmployeeSheet({
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger render={<Button size="icon-sm" variant="outline" />}>
-        <Pencil className="size-3.5" />
-      </SheetTrigger>
+      {!isControlled && (
+        <SheetTrigger render={<Button size="icon-sm" variant="outline" />}>
+          <Pencil className="size-3.5" />
+        </SheetTrigger>
+      )}
       <SheetContent className="sm:max-w-md">
         <SheetHeader>
           <SheetTitle>Edit employee</SheetTitle>

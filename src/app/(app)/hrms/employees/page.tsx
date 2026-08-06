@@ -15,8 +15,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { formatDate, initials, titleCase } from "@/lib/format";
 import { employeeRoleName } from "@/lib/roles";
 import { NewEmployeeSheet } from "@/components/hrms/new-employee-sheet";
-import { DeleteEmployeeButton } from "@/components/hrms/employee-row-actions";
-import { EditEmployeeSheet } from "@/components/hrms/edit-employee-sheet";
+import { EmployeeRowMenu } from "@/components/hrms/employee-row-menu";
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive"> = {
   ACTIVE: "default",
@@ -81,8 +80,8 @@ export default async function EmployeesPage() {
                 </Badge>
               </TableCell>
               <TableCell className="text-right">
-                <div className="flex justify-end gap-1.5">
-                  <EditEmployeeSheet
+                <div className="flex justify-end">
+                  <EmployeeRowMenu
                     employee={{
                       id: emp.id,
                       name: emp.name,
@@ -94,10 +93,9 @@ export default async function EmployeesPage() {
                     }}
                     managerOptions={managerOptions}
                     departments={departments}
+                    salaryStructure={emp.salaryStructures[0] ?? null}
+                    canDelete={emp.id !== user.employeeId}
                   />
-                  {emp.id !== user.employeeId && (
-                    <DeleteEmployeeButton employeeId={emp.id} employeeName={emp.name} />
-                  )}
                 </div>
               </TableCell>
             </TableRow>
