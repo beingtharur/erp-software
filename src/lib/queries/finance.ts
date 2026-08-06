@@ -30,17 +30,22 @@ export async function getBudgets(organizationId: string) {
   const budgets = await prisma.budget.findMany({
     where: { requestedBy: { organizationId } },
     orderBy: { startDate: "desc" },
-    include: { requestedBy: true },
+    include: { requestedBy: true, department: { select: { id: true, name: true } } },
   });
 
   const spentByBudget = await Promise.all(
     budgets.map(async (b) => {
+      // Spend used to be matched by comparing two free-text department strings,
+      // which silently missed anything spelled differently. It now joins on the
+      // department itself. A budget with no department can't attribute spend, so
+      // it reports zero rather than accidentally summing the whole org.
+      if (!b.departmentId) return 0;
       const result = await prisma.expenseClaim.aggregate({
         where: {
           category: b.category,
           status: { in: ["APPROVED", "REIMBURSED"] },
           expenseDate: { gte: b.startDate, lte: b.endDate },
-          employee: { department: b.department, organizationId },
+          employee: { departmentId: b.departmentId, organizationId },
         },
         _sum: { amount: true },
       });

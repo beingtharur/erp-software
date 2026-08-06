@@ -16,10 +16,11 @@ import {
   SheetClose,
 } from "@/components/ui/sheet";
 import { JobTitleSelect } from "@/components/roles/role-fields";
+import { DepartmentSelect, type DepartmentOption } from "@/components/departments/department-select";
 import { createSelfEmployeeProfile } from "@/lib/actions/hrms";
 import { UserCog } from "lucide-react";
 
-export function CompleteProfileBanner() {
+export function CompleteProfileBanner({ departments }: { departments: DepartmentOption[] }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createSelfEmployeeProfile, undefined);
 
@@ -63,13 +64,8 @@ export function CompleteProfileBanner() {
                 </p>
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="profile-department">Department</Label>
-                <Input
-                  id="profile-department"
-                  name="department"
-                  placeholder="e.g. Management"
-                  required
-                />
+                <Label htmlFor="profile-departmentId">Department</Label>
+                <DepartmentSelect id="profile-departmentId" departments={departments} />
               </div>
             </div>
 

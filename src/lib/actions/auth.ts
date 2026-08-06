@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 import { verifyPassword, hashPassword } from "@/lib/password";
 import { createSession, deleteSession } from "@/lib/session";
 import { roleHome, roleSectionAccess } from "@/lib/nav";
-import { PRICING_CONFIG } from "@/lib/billing/pricing-config";
+import { buildInitialSubscription } from "@/lib/billing/dev-mode";
 import { withUniqueCodeRetry } from "@/lib/sequence";
 import { logAudit } from "@/lib/audit";
 
@@ -102,18 +102,17 @@ export async function registerOrganization(
 
   const { hash, salt } = hashPassword(password);
   const now = new Date();
-  const trialEndsAt = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
 
   const user = await withUniqueCodeRetry(() =>
     prisma.$transaction(async (tx) => {
       const organization = await tx.organization.create({ data: { name: orgName, slug } });
+      // Normally a 5-day trial; a full plan when development subscription mode
+      // is on. Either way it's an ordinary Subscription row, so every access
+      // check downstream behaves the same (see lib/billing/dev-mode.ts).
       await tx.subscription.create({
         data: {
-          organizationId: organization.id,
-          status: "TRIAL",
-          trialStartedAt: now,
-          trialEndsAt,
-          licencedUsers: PRICING_CONFIG.minimumUsers,
+          ...buildInitialSubscription(now),
+          organization: { connect: { id: organization.id } },
         },
       });
 
@@ -126,7 +125,6 @@ export async function registerOrganization(
           employeeCode,
           name,
           role: "ADMIN",
-          department: "",
           email,
           phone: "",
           dateOfJoining: now,

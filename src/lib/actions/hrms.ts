@@ -270,7 +270,7 @@ export async function createEmployee(
 
   const name = String(formData.get("name") ?? "").trim();
   const role = String(formData.get("role") ?? "");
-  const department = String(formData.get("department") ?? "").trim();
+  const departmentId = String(formData.get("departmentId") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const phone = String(formData.get("phone") ?? "").trim();
   const dateOfJoining = String(formData.get("dateOfJoining") ?? "");
@@ -280,7 +280,6 @@ export async function createEmployee(
   if (
     !name ||
     !role ||
-    !department ||
     !email ||
     !phone ||
     !dateOfJoining ||
@@ -317,7 +316,7 @@ export async function createEmployee(
             employeeCode,
             name,
             role: role as never,
-            department,
+            departmentId: departmentId || null,
             email,
             phone,
             dateOfJoining: new Date(dateOfJoining),
@@ -403,7 +402,7 @@ export async function updateEmployee(
 
   const employeeId = String(formData.get("employeeId") ?? "");
   const name = String(formData.get("name") ?? "").trim();
-  const department = String(formData.get("department") ?? "").trim();
+  const departmentId = String(formData.get("departmentId") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
   const baseLocation = String(formData.get("baseLocation") ?? "").trim();
   const status = String(formData.get("status") ?? "");
@@ -438,7 +437,7 @@ export async function updateEmployee(
     where: { id: employeeId },
     data: {
       name,
-      department,
+      departmentId: departmentId || null,
       phone,
       baseLocation,
       status: status as never,
@@ -473,12 +472,12 @@ export async function createSelfEmployeeProfile(
 
   const name = String(formData.get("name") ?? "").trim();
   const role = String(formData.get("role") ?? "");
-  const department = String(formData.get("department") ?? "").trim();
+  const departmentId = String(formData.get("departmentId") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
   const dateOfJoining = String(formData.get("dateOfJoining") ?? "");
   const baseLocation = String(formData.get("baseLocation") ?? "").trim();
 
-  if (!name || !role || !department || !phone || !dateOfJoining || !baseLocation) {
+  if (!name || !role || !phone || !dateOfJoining || !baseLocation) {
     return { error: "Please fill in all fields." };
   }
 
@@ -516,7 +515,7 @@ export async function createSelfEmployeeProfile(
         employeeCode,
         name,
         role: role as never,
-        department,
+        departmentId: departmentId || null,
         email: user.email,
         phone,
         dateOfJoining: new Date(dateOfJoining),

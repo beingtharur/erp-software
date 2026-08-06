@@ -11,7 +11,7 @@ export type FieldRep = {
   id: string;
   name: string;
   role: string;
-  department: string;
+  department: string | null;
   latitude: number | null;
   longitude: number | null;
   geofenceId: string | null;

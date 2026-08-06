@@ -83,9 +83,14 @@ describe("getCurrentUser", () => {
 
     const result = await getCurrentUser();
     expect(result).toEqual(dbUser);
+    // The employee's department is loaded alongside the employee: it's rendered
+    // in the profile header, and it's what a future department-aware permission
+    // rule would read (user.employee.departmentId) without another query.
     expect(findUniqueMock).toHaveBeenCalledWith({
       where: { id: "user_admin" },
-      include: { employee: true },
+      include: {
+        employee: { include: { department: { select: { id: true, name: true } } } },
+      },
     });
   });
 

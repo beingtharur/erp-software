@@ -106,14 +106,24 @@ export async function createBudget(
     return { error: "No employee record linked to this account." };
   }
 
-  const department = String(formData.get("department") ?? "").trim();
+  const departmentId = String(formData.get("departmentId") ?? "").trim();
   const category = String(formData.get("category") ?? "");
   const startDate = String(formData.get("startDate") ?? "");
   const endDate = String(formData.get("endDate") ?? "");
   const proposedAmount = Number(formData.get("proposedAmount"));
 
-  if (!department || !category || !startDate || !endDate) {
+  if (!departmentId || !category || !startDate || !endDate) {
     return { error: "Please fill in all fields." };
+  }
+
+  // Scoped to the caller's organization — a budget must not be openable against
+  // another tenant's department.
+  const department = await prisma.department.findFirst({
+    where: { id: departmentId, organizationId },
+    select: { id: true, name: true },
+  });
+  if (!department) {
+    return { error: "Department not found." };
   }
   if (!Number.isFinite(proposedAmount) || proposedAmount <= 0) {
     return { error: "Enter a valid amount." };
@@ -124,7 +134,7 @@ export async function createBudget(
 
   const budget = await prisma.budget.create({
     data: {
-      department,
+      departmentId: department.id,
       category: category as never,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
@@ -143,7 +153,7 @@ export async function createBudget(
   await notifyRole(
     "ADMIN",
     organizationId,
-    `New budget proposal for ${department} (${formatINR(proposedAmount)}) is awaiting your approval.`,
+    `New budget proposal for ${department.name} (${formatINR(proposedAmount)}) is awaiting your approval.`,
     "/approvals"
   );
 

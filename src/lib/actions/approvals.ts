@@ -98,10 +98,11 @@ export async function decideApproval(approvalId: string, decision: "APPROVED" | 
       const budget = await prisma.budget.update({
         where: { id: approval.entityId },
         data: { status: decision },
+        include: { department: { select: { name: true } } },
       });
       await notifyEmployee(
         approval.requestedById,
-        `Your budget proposal for ${budget.department} (${formatINR(budget.proposedAmount)}) was ${decision === "APPROVED" ? "approved" : "rejected"}.`,
+        `Your budget proposal for ${budget.department?.name ?? "the department"} (${formatINR(budget.proposedAmount)}) was ${decision === "APPROVED" ? "approved" : "rejected"}.`,
         "/finance/budgets"
       );
       revalidatePath("/finance/budgets");

@@ -63,6 +63,7 @@ export const navSections: NavSection[] = [
     items: [
       { title: "Overview", href: "/hrms", icon: LayoutDashboard },
       { title: "Employees", href: "/hrms/employees", icon: Users },
+      { title: "Departments", href: "/hrms/departments", icon: Building2 },
       { title: "Attendance", href: "/hrms/attendance", icon: CalendarDays },
       { title: "Leave", href: "/hrms/leave", icon: Plane },
       { title: "Timesheets", href: "/hrms/timesheets", icon: Clock },

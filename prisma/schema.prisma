@@ -25,6 +25,7 @@ model Organization {
 
   users         User[]
   employees     Employee[]
+  departments   Department[]
   clients       Client[]
   vendors       Vendor[]
   geofenceZones GeofenceZone[]
@@ -133,12 +134,66 @@ enum EmployeeStatus {
   INACTIVE
 }
 
+// What a node in the org tree represents. Every company slices its structure
+// differently — a manufacturer has Plants, a group has Business Units, a
+// services firm has just Departments and Teams — so the level is data, not a
+// separate table per level. This is what keeps the single self-referencing
+// tree generic instead of hardcoding one company's shape.
+enum OrgUnitType {
+  BUSINESS_UNIT
+  DIVISION
+  BRANCH
+  PLANT
+  DEPARTMENT
+  SECTION
+  TEAM
+}
+
+// Departments are organization-scoped master data, not a string typed onto each
+// employee. `parentId` is self-referential on purpose: it is what lets Sections,
+// Teams, Plants and Divisions exist as *data* (a Section is simply a unit whose
+// parent is a Department) rather than as another schema redesign. Combined with
+// `type`, one table models the whole hierarchy at any depth.
+model Department {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  code           String
+  // Defaults to DEPARTMENT so existing rows and simple organizations need no
+  // decision, while companies with plants or divisions can say so.
+  type           OrgUnitType  @default(DEPARTMENT)
+  description    String?
+  // The department head is an employee, and an employee belongs to a
+  // department — two independent relations to the same model, so both are named.
+  headId         String?
+  head           Employee?    @relation("DepartmentHead", fields: [headId], references: [id])
+  parentId       String?
+  parent         Department?  @relation("DepartmentTree", fields: [parentId], references: [id])
+  children       Department[] @relation("DepartmentTree")
+  isActive       Boolean      @default(true)
+
+  employees Employee[] @relation("EmployeeDepartment")
+  budgets   Budget[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId, isActive])
+  @@index([parentId])
+}
+
 model Employee {
   id             String         @id @default(cuid())
   employeeCode   String         @unique
   name           String
   role           EmployeeRole
-  department     String
+  // Nullable because an organization's very first admin is created before any
+  // department exists (see registerOrganization).
+  departmentId   String?
+  department     Department?    @relation("EmployeeDepartment", fields: [departmentId], references: [id])
+  headedDepartments Department[] @relation("DepartmentHead")
   email          String
   phone          String
   dateOfJoining  DateTime
@@ -977,7 +1032,10 @@ enum BudgetStatus {
 
 model Budget {
   id             String          @id @default(cuid())
-  department     String
+  // Nullable so a budget survives its department being reorganized away; spend
+  // matching simply finds nothing rather than the row becoming unreadable.
+  departmentId   String?
+  department     Department?     @relation(fields: [departmentId], references: [id])
   category       ExpenseCategory
   startDate      DateTime
   endDate        DateTime
@@ -987,7 +1045,7 @@ model Budget {
   status         BudgetStatus    @default(PENDING)
   createdAt      DateTime        @default(now())
 
-  @@index([department, category])
+  @@index([departmentId, category])
 }
 
 // ---------- Document Management ----------

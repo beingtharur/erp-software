@@ -5,6 +5,7 @@ import { requireRole, requireModuleAccess } from "@/lib/dal";
 const tabs = [
   { title: "Overview", href: "/hrms" },
   { title: "Employees", href: "/hrms/employees" },
+  { title: "Departments", href: "/hrms/departments" },
   { title: "Org Chart", href: "/hrms/org-chart" },
   { title: "Attendance", href: "/hrms/attendance" },
   { title: "Leave", href: "/hrms/leave" },

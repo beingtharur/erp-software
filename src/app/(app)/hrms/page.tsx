@@ -127,19 +127,51 @@ export default async function HrmsOverviewPage() {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Headcount by department</CardTitle>
-            <CardDescription>Active employees</CardDescription>
+          <CardHeader className="flex-row items-start justify-between space-y-0">
+            <div>
+              <CardTitle>Headcount by department</CardTitle>
+              <CardDescription>Active employees</CardDescription>
+            </div>
+            <Link
+              href="/hrms/departments"
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              Manage →
+            </Link>
           </CardHeader>
           <CardContent className="space-y-2.5">
-            {data.departmentCounts
-              .sort((a, b) => b._count - a._count)
+            {data.departmentHeadcount.departments.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No departments yet.{" "}
+                <Link href="/hrms/departments" className="font-medium text-primary hover:underline">
+                  Set them up
+                </Link>{" "}
+                to organize your team.
+              </p>
+            )}
+            {[...data.departmentHeadcount.departments]
+              .sort((a, b) => b.count - a.count)
               .map((d) => (
-                <div key={d.department} className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{d.department}</span>
-                  <Badge variant="secondary" className="font-normal">{d._count}</Badge>
+                <div key={d.id} className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    {d.name}
+                    {!d.isActive && (
+                      <span className="ml-1.5 text-xs text-muted-foreground/70">(inactive)</span>
+                    )}
+                  </span>
+                  <Badge variant="secondary" className="font-normal">
+                    {d.count}
+                  </Badge>
                 </div>
               ))}
+            {data.departmentHeadcount.unassigned > 0 && (
+              <div className="flex items-center justify-between border-t pt-2.5 text-sm">
+                <span className="text-muted-foreground">No department assigned</span>
+                <Badge variant="outline" className="font-normal">
+                  {data.departmentHeadcount.unassigned}
+                </Badge>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

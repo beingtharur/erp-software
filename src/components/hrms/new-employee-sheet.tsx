@@ -16,11 +16,12 @@ import {
   SheetClose,
 } from "@/components/ui/sheet";
 import { JobTitleSelect, PortalAccessSelect } from "@/components/roles/role-fields";
+import { DepartmentSelect, type DepartmentOption } from "@/components/departments/department-select";
 import { createEmployee } from "@/lib/actions/hrms";
 import { Plus } from "lucide-react";
 import type { EmployeeRole } from "@/generated/prisma/client";
 
-export function NewEmployeeSheet() {
+export function NewEmployeeSheet({ departments }: { departments: DepartmentOption[] }) {
   const [open, setOpen] = useState(false);
   const [jobTitle, setJobTitle] = useState<EmployeeRole>("ENGINEER");
   const [state, formAction, pending] = useActionState(createEmployee, undefined);
@@ -55,8 +56,8 @@ export function NewEmployeeSheet() {
               <JobTitleSelect id="role" required value={jobTitle} onValueChange={setJobTitle} />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="department">Department</Label>
-              <Input id="department" name="department" placeholder="e.g. Projects" required />
+              <Label htmlFor="departmentId">Department</Label>
+              <DepartmentSelect id="departmentId" departments={departments} />
             </div>
           </div>
 

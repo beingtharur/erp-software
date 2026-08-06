@@ -6,7 +6,7 @@ type FlatEmployee = {
   id: string;
   name: string;
   role: string;
-  department: string;
+  department: { id: string; name: string } | null;
   reportingToId: string | null;
 };
 

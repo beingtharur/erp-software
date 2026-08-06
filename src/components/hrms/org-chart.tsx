@@ -11,7 +11,7 @@ export type OrgNode = {
   id: string;
   name: string;
   role: string;
-  department: string;
+  department: { id: string; name: string } | null;
   children: OrgNode[];
 };
 
@@ -42,7 +42,7 @@ function OrgChartNode({ node, depth }: { node: OrgNode; depth: number }) {
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium leading-none">{node.name}</p>
           <p className="mt-1 truncate text-xs text-muted-foreground">
-            {employeeRoleName(node.role)} · {node.department}
+            {employeeRoleName(node.role)}{node.department ? ` · ${node.department.name}` : ""}
           </p>
         </div>
         {hasChildren && (

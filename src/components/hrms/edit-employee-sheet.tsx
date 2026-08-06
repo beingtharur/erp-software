@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { updateEmployee } from "@/lib/actions/hrms";
+import { DepartmentSelect, type DepartmentOption } from "@/components/departments/department-select";
 import { titleCase } from "@/lib/format";
 import { Pencil } from "lucide-react";
 
@@ -33,17 +34,19 @@ type ManagerOption = { id: string; name: string };
 export function EditEmployeeSheet({
   employee,
   managerOptions,
+  departments,
 }: {
   employee: {
     id: string;
     name: string;
-    department: string;
+    departmentId: string | null;
     phone: string;
     baseLocation: string;
     status: string;
     reportingToId: string | null;
   };
   managerOptions: ManagerOption[];
+  departments: DepartmentOption[];
 }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(updateEmployee, undefined);
@@ -67,7 +70,14 @@ export function EditEmployeeSheet({
           <SheetTitle>Edit employee</SheetTitle>
           <SheetDescription>Update {employee.name}&apos;s profile.</SheetDescription>
         </SheetHeader>
-        <form action={formAction} className="flex flex-1 flex-col gap-4 overflow-y-auto px-4">
+        {/* Keyed so the uncontrolled selects remount rather than having their
+            defaultValue changed after a save (see Base UI's uncontrolled-value
+            warning). */}
+        <form
+          key={`${open}-${employee.departmentId ?? ""}-${employee.reportingToId ?? ""}-${employee.status}`}
+          action={formAction}
+          className="flex flex-1 flex-col gap-4 overflow-y-auto px-4"
+        >
           <input type="hidden" name="employeeId" value={employee.id} />
 
           <div className="flex flex-col gap-1.5">
@@ -77,12 +87,11 @@ export function EditEmployeeSheet({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`department-${employee.id}`}>Department</Label>
-              <Input
-                id={`department-${employee.id}`}
-                name="department"
-                defaultValue={employee.department}
-                placeholder="e.g. Projects"
+              <Label htmlFor={`departmentId-${employee.id}`}>Department</Label>
+              <DepartmentSelect
+                id={`departmentId-${employee.id}`}
+                departments={departments}
+                defaultValue={employee.departmentId}
               />
             </div>
             <div className="flex flex-col gap-1.5">

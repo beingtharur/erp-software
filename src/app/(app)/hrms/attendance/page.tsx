@@ -58,7 +58,7 @@ export default async function AttendancePage() {
             {attendance.map((a) => (
               <TableRow key={a.id}>
                 <TableCell className="font-medium">{a.employee.name}</TableCell>
-                <TableCell className="text-muted-foreground">{a.employee.department}</TableCell>
+                <TableCell className="text-muted-foreground">{a.employee.department?.name ?? "—"}</TableCell>
                 <TableCell className="text-muted-foreground">
                   {a.checkIn ? formatTime(a.checkIn) : "—"}
                 </TableCell>

@@ -50,7 +50,7 @@ export async function createUserForEmployee(
     | {
         name: string;
         role: string;
-        department: string;
+        departmentId: string | null;
         email: string;
         phone: string;
         dateOfJoining: string;
@@ -62,13 +62,13 @@ export async function createUserForEmployee(
   if (mode === "new") {
     const name = String(formData.get("name") ?? "").trim();
     const role = String(formData.get("role") ?? "");
-    const department = String(formData.get("department") ?? "").trim();
+    const departmentId = String(formData.get("departmentId") ?? "").trim() || null;
     const email = String(formData.get("email") ?? "").trim().toLowerCase();
     const phone = String(formData.get("phone") ?? "").trim();
     const dateOfJoining = String(formData.get("dateOfJoining") ?? "");
     const baseLocation = String(formData.get("baseLocation") ?? "").trim();
 
-    if (!name || !role || !department || !email || !phone || !dateOfJoining || !baseLocation) {
+    if (!name || !role || !email || !phone || !dateOfJoining || !baseLocation) {
       return { error: "Please fill in all fields." };
     }
 
@@ -76,7 +76,7 @@ export async function createUserForEmployee(
     if (alreadyThere) {
       return { error: "An employee with this email already exists." };
     }
-    newEmployeeFields = { name, role, department, email, phone, dateOfJoining, baseLocation };
+    newEmployeeFields = { name, role, departmentId, email, phone, dateOfJoining, baseLocation };
   } else {
     const employeeId = String(formData.get("employeeId") ?? "");
     if (!employeeId) {
@@ -119,7 +119,7 @@ export async function createUserForEmployee(
               employeeCode,
               name: newEmployeeFields.name,
               role: newEmployeeFields.role as never,
-              department: newEmployeeFields.department,
+              departmentId: newEmployeeFields.departmentId,
               email: newEmployeeFields.email,
               phone: newEmployeeFields.phone,
               dateOfJoining: new Date(newEmployeeFields.dateOfJoining),

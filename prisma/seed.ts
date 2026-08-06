@@ -158,6 +158,21 @@ async function main() {
     { code: "EOS-028", name: "Tanvi Mehta", role: "ADMIN", department: "Procurement", location: "Vadodara, GJ" },
   ];
 
+  // Departments are master data now, so they're created first and the
+  // employees below reference them — the seed's department strings are just
+  // the source list they're built from.
+  const departmentIdByName: Record<string, string> = {};
+  for (const [i, name] of Array.from(new Set(employeeSeed.map((e) => e.department))).entries()) {
+    const created = await prisma.department.create({
+      data: {
+        organizationId: org.id,
+        name,
+        code: `DEPT-${String(i + 1).padStart(3, "0")}`,
+      },
+    });
+    departmentIdByName[name] = created.id;
+  }
+
   const employees: Record<string, Awaited<ReturnType<typeof prisma.employee.create>>> = {};
   for (const [i, e] of employeeSeed.entries()) {
     const emp = await prisma.employee.create({
@@ -165,7 +180,7 @@ async function main() {
         employeeCode: e.code,
         name: e.name,
         role: e.role,
-        department: e.department,
+        departmentId: departmentIdByName[e.department],
         email: `${e.name.toLowerCase().replace(/\s+/g, ".")}@eostechno.com`,
         phone: `+91 9${randInt(100000000, 999999999)}`,
         dateOfJoining: daysAgo(randInt(120, 1800)),
@@ -621,14 +636,14 @@ async function main() {
     });
   }
 
-  const departments = Array.from(new Set(allEmployees.map((e) => e.department)));
+  const departmentIds = Object.values(departmentIdByName);
   const budgetStatuses = ["PENDING", "APPROVED", "REJECTED"] as const;
   for (let i = 0; i < 8; i++) {
-    const department = pick(departments);
+    const departmentId = pick(departmentIds);
     const start = daysAgo(randInt(30, 90));
     await prisma.budget.create({
       data: {
-        department,
+        departmentId,
         category: pick([...expenseCategories]),
         startDate: start,
         endDate: new Date(start.getTime() + 90 * 86400000),
@@ -743,12 +758,16 @@ async function main() {
     data: { name: "Vasant Industrial Supplies", slug: "vasant-industrial" },
   });
 
+  const secondOrgLeadership = await prisma.department.create({
+    data: { organizationId: secondOrg.id, name: "Leadership", code: "DEPT-001" },
+  });
+
   const secondEmployee = await prisma.employee.create({
     data: {
       employeeCode: "VIS-001",
       name: "Kiran Deshpande",
       role: "ADMIN",
-      department: "Leadership",
+      departmentId: secondOrgLeadership.id,
       email: "kiran.deshpande@vasantindustrial.com",
       phone: "+91 9800000001",
       dateOfJoining: daysAgo(10),

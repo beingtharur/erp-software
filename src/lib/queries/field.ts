@@ -12,6 +12,7 @@ export async function getFieldMapData(organizationId: string) {
       },
       include: {
         locationPings: { orderBy: { timestamp: "desc" }, take: 1, include: { geofence: true } },
+        department: { select: { id: true, name: true } },
       },
     }),
     prisma.visitLog.findMany({
@@ -34,7 +35,7 @@ export async function getFieldMapData(organizationId: string) {
       id: emp.id,
       name: emp.name,
       role: emp.role,
-      department: emp.department,
+      department: emp.department?.name ?? null,
       latitude: ping?.latitude ?? null,
       longitude: ping?.longitude ?? null,
       geofenceId: ping?.geofenceId ?? null,

@@ -45,3 +45,7 @@ next-env.d.ts
 
 # local file storage (dev-only; see src/lib/storage.ts)
 /public/uploads
+
+# Local database backups taken before migrations — never version these
+prisma/*.bak-*
+prisma/*.db.bak*

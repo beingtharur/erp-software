@@ -1,5 +1,6 @@
 import { requireRole, getCurrentUser } from "@/lib/dal";
 import { getUsers, getEmployeesWithoutLogin } from "@/lib/queries/admin";
+import { getDepartmentOptions } from "@/lib/queries/departments";
 import { SiteHeader } from "@/components/layout/site-header";
 import {
   Table,
@@ -21,9 +22,10 @@ export default async function AdminUsersPage() {
   const currentUser = await getCurrentUser();
 
   const organizationId = currentUser.organizationId!;
-  const [users, eligibleEmployees] = await Promise.all([
+  const [users, eligibleEmployees, departments] = await Promise.all([
     getUsers(organizationId),
     getEmployeesWithoutLogin(organizationId),
+    getDepartmentOptions(organizationId),
   ]);
 
   return (
@@ -38,7 +40,7 @@ export default async function AdminUsersPage() {
             {users.length} user{users.length === 1 ? "" : "s"} with portal access ·{" "}
             {eligibleEmployees.length} employee{eligibleEmployees.length === 1 ? "" : "s"} without a login
           </p>
-          <NewUserSheet employees={eligibleEmployees} />
+          <NewUserSheet employees={eligibleEmployees} departments={departments} />
         </div>
 
         <div className="rounded-lg border">
@@ -75,7 +77,7 @@ export default async function AdminUsersPage() {
                     {user.employee ? employeeRoleName(user.employee.role) : "—"}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {user.employee?.department ?? "—"}
+                    {user.employee?.department?.name ?? "—"}
                   </TableCell>
                   <TableCell>
                     <UserRoleSelect userId={user.id} accessRole={user.accessRole} />

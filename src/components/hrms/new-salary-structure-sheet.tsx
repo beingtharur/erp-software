@@ -83,7 +83,17 @@ export function NewSalaryStructureSheet({
             keeps whatever was active when it was generated.
           </SheetDescription>
         </SheetHeader>
-        <form action={formAction} className="flex flex-1 flex-col gap-4 overflow-y-auto px-4">
+        {/* Remounted whenever the sheet opens or the stored structure changes.
+            The inputs are uncontrolled, so without this their defaultValue
+            would be mutated in place after a save — which is exactly what Base
+            UI warns about ("changing the default value state of an uncontrolled
+            FieldControl after being initialized") and would also leave stale
+            figures in the form the next time it was opened. */}
+        <form
+          key={`${open}-${current?.basicSalary ?? "new"}`}
+          action={formAction}
+          className="flex flex-1 flex-col gap-4 overflow-y-auto px-4"
+        >
           <input type="hidden" name="employeeId" value={employeeId} />
 
           <div className="flex flex-col gap-1.5">
@@ -108,7 +118,11 @@ export function NewSalaryStructureSheet({
                   min={0}
                   step="any"
                   required={field.required}
-                  defaultValue={current?.[field.name] ?? 0}
+                  // Placeholder rather than a typed 0, so a blank field can just
+                  // be filled in instead of cleared first. An empty component
+                  // submits as 0 (Number("") === 0), which is what it means.
+                  placeholder="0"
+                  defaultValue={current?.[field.name] ?? ""}
                 />
               </div>
             ))}

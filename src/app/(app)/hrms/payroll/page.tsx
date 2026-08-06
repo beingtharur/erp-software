@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getPayrollRecords, getEmployeesWithoutSalaryStructure } from "@/lib/queries/hrms";
 import { getCurrentUser } from "@/lib/dal";
+import { NewSalaryStructureSheet } from "@/components/hrms/new-salary-structure-sheet";
 import {
   Table,
   TableBody,
@@ -36,18 +37,21 @@ export default async function PayrollPage() {
             {employeesMissingSalary.length === 1 ? "" : "s"} without a salary structure
           </p>
           <p className="mt-0.5 text-muted-foreground">
-            Payroll skips anyone without one set up. Open their profile and use{" "}
-            <span className="font-medium">Set Up Salary</span> under Salary Structure:
+            Payroll skips anyone without one set up — set theirs up here, or open their profile for
+            the full record.
           </p>
-          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+          <div className="mt-2 flex flex-col gap-1.5">
             {employeesMissingSalary.map((e) => (
-              <Link
+              <div
                 key={e.id}
-                href={`/hrms/employees/${e.id}`}
-                className="text-primary hover:underline"
+                className="flex items-center justify-between gap-3 rounded-md border bg-background px-3 py-1.5"
               >
-                {e.name} ({e.employeeCode})
-              </Link>
+                <Link href={`/hrms/employees/${e.id}`} className="text-primary hover:underline">
+                  {e.name} ({e.employeeCode})
+                </Link>
+                {/* Same sheet the employee profile uses — no second form. */}
+                <NewSalaryStructureSheet employeeId={e.id} />
+              </div>
             ))}
           </div>
         </div>

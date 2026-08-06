@@ -6,7 +6,7 @@ import type { Prisma } from "@/generated/prisma/client";
 // come from these functions rather than each page assembling its own query.
 
 const withAssignmentContext = {
-  employee: { select: { id: true, name: true, department: true } },
+  employee: { select: { id: true, name: true, department: { select: { id: true, name: true } } } },
   assignedBy: { select: { id: true, name: true } },
   comments: {
     orderBy: { createdAt: "asc" },
@@ -134,26 +134,42 @@ export async function getTaskStats(organizationId: string) {
 }
 
 /**
- * One employee's task picture for their HRMS profile: the same four numbers the
- * org-wide KPIs use, plus the most recent tasks themselves.
+ * One employee's task picture, shared by their HRMS profile (what HR sees) and
+ * their own quick-access card on /me (what they see) — the same numbers on both
+ * sides of the conversation, from one query.
  */
 export async function getEmployeeTaskSummary(employeeId: string) {
   const today = startOfToday();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
 
-  const [tasks, total, completed, pending, overdue] = await Promise.all([
-    prisma.personalTask.findMany({
-      where: { employeeId },
-      orderBy: [{ status: "asc" }, { dueDate: "asc" }, { createdAt: "desc" }],
-      take: 8,
-      include: { assignedBy: { select: { id: true, name: true } } },
-    }),
-    prisma.personalTask.count({ where: { employeeId } }),
-    prisma.personalTask.count({ where: { employeeId, status: "DONE" } }),
-    prisma.personalTask.count({ where: { employeeId, status: { not: "DONE" } } }),
-    prisma.personalTask.count({
-      where: { employeeId, status: { not: "DONE" }, dueDate: { lt: today } },
-    }),
-  ]);
+  const [tasks, recentAssignments, total, completed, pending, overdue, dueToday] =
+    await Promise.all([
+      prisma.personalTask.findMany({
+        where: { employeeId },
+        orderBy: [{ status: "asc" }, { dueDate: "asc" }, { createdAt: "desc" }],
+        take: 8,
+        include: { assignedBy: { select: { id: true, name: true } } },
+      }),
+      // Work handed to them by someone else, newest first — queried rather than
+      // filtered out of `tasks` above, whose ordering could push a recent
+      // assignment past the cut-off.
+      prisma.personalTask.findMany({
+        where: { employeeId, assignedById: { not: null } },
+        orderBy: { createdAt: "desc" },
+        take: 4,
+        include: { assignedBy: { select: { id: true, name: true } } },
+      }),
+      prisma.personalTask.count({ where: { employeeId } }),
+      prisma.personalTask.count({ where: { employeeId, status: "DONE" } }),
+      prisma.personalTask.count({ where: { employeeId, status: { not: "DONE" } } }),
+      prisma.personalTask.count({
+        where: { employeeId, status: { not: "DONE" }, dueDate: { lt: today } },
+      }),
+      prisma.personalTask.count({
+        where: { employeeId, status: { not: "DONE" }, dueDate: { gte: today, lt: tomorrow } },
+      }),
+    ]);
 
-  return { tasks, total, completed, pending, overdue };
+  return { tasks, recentAssignments, total, completed, pending, overdue, dueToday };
 }

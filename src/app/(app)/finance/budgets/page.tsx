@@ -1,5 +1,6 @@
 import { getBudgets } from "@/lib/queries/finance";
 import { getCurrentUser } from "@/lib/dal";
+import { getDepartmentOptions } from "@/lib/queries/departments";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -14,12 +15,15 @@ const statusVariant: Record<string, "default" | "secondary" | "destructive"> = {
 
 export default async function BudgetsPage() {
   const user = await getCurrentUser();
-  const budgets = await getBudgets(user.organizationId!);
+  const [budgets, departments] = await Promise.all([
+    getBudgets(user.organizationId!),
+    getDepartmentOptions(user.organizationId!),
+  ]);
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex justify-end">
-        <NewBudgetSheet />
+        <NewBudgetSheet departments={departments} />
       </div>
 
       {budgets.length === 0 && (
@@ -38,7 +42,7 @@ export default async function BudgetsPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <p className="font-medium">{b.department}</p>
+                    <p className="font-medium">{b.department?.name ?? "No department"}</p>
                     <Badge variant="outline" className="font-normal">
                       {titleCase(b.category)}
                     </Badge>

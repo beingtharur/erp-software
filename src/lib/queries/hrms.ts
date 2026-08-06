@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getTaskStats } from "@/lib/queries/tasks";
+import { getDepartmentHeadcount } from "@/lib/queries/departments";
 
 function startOfToday() {
   const d = new Date();
@@ -18,7 +19,7 @@ export async function getHrmsOverview(organizationId: string) {
     onLeaveToday,
     pendingPayroll,
     recentLeaveRequests,
-    departmentCounts,
+    departmentHeadcount,
     taskStats,
   ] = await Promise.all([
     prisma.employee.count({ where: { status: "ACTIVE", organizationId, deletedAt: null } }),
@@ -43,11 +44,10 @@ export async function getHrmsOverview(organizationId: string) {
       take: 6,
       include: { employee: true },
     }),
-    prisma.employee.groupBy({
-      by: ["department"],
-      _count: true,
-      where: { status: "ACTIVE", organizationId, deletedAt: null },
-    }),
+    // Headcount now comes from the Department master list rather than a
+    // groupBy over free text, so departments with nobody in them still show
+    // (a zero-headcount department is information, not an absence).
+    getDepartmentHeadcount(organizationId),
     // Reuses the same counts the Tasks console header shows, so the two views
     // can never disagree about what "overdue" or "completed today" means.
     getTaskStats(organizationId),
@@ -60,7 +60,7 @@ export async function getHrmsOverview(organizationId: string) {
     onLeaveToday,
     pendingPayroll,
     recentLeaveRequests,
-    departmentCounts,
+    departmentHeadcount,
     taskStats,
   };
 }
@@ -71,6 +71,7 @@ export async function getEmployees(organizationId: string) {
     orderBy: { name: "asc" },
     include: {
       _count: { select: { timesheets: true, leaveRequests: true } },
+      department: { select: { id: true, name: true } },
     },
   });
 }
@@ -84,6 +85,7 @@ export async function getEmployeeDetail(id: string, organizationId: string) {
       payrollRecords: { orderBy: [{ year: "desc" }, { month: "desc" }], take: 6 },
       timesheets: { orderBy: { date: "desc" }, take: 10, include: { project: true } },
       reportingTo: true,
+      department: { select: { id: true, name: true } },
       documents: { orderBy: { createdAt: "desc" }, include: { uploadedBy: true } },
       salaryStructures: { orderBy: { effectiveFrom: "desc" }, take: 6 },
     },
@@ -112,7 +114,7 @@ export async function getOrgChart(organizationId: string) {
       id: true,
       name: true,
       role: true,
-      department: true,
+      department: { select: { id: true, name: true } },
       reportingToId: true,
     },
   });
@@ -129,6 +131,7 @@ export async function getAttendanceToday(organizationId: string) {
     prisma.employee.findMany({
       where: { status: "ACTIVE", organizationId, deletedAt: null },
       orderBy: { name: "asc" },
+      include: { department: { select: { id: true, name: true } } },
     }),
     prisma.attendance.findMany({
       where: { date: today, employee: { organizationId } },

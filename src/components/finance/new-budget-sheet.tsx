@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createBudget } from "@/lib/actions/finance";
+import { DepartmentSelect, type DepartmentOption } from "@/components/departments/department-select";
 import { Plus } from "lucide-react";
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -34,7 +35,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   OTHER: "Other",
 };
 
-export function NewBudgetSheet() {
+export function NewBudgetSheet({ departments }: { departments: DepartmentOption[] }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(createBudget, undefined);
 
@@ -58,8 +59,13 @@ export function NewBudgetSheet() {
         </SheetHeader>
         <form action={formAction} className="flex flex-1 flex-col gap-4 overflow-y-auto px-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="department">Department</Label>
-            <Input id="department" name="department" placeholder="e.g. Field Operations" required />
+            <Label htmlFor="departmentId">Department</Label>
+            <DepartmentSelect
+              id="departmentId"
+              departments={departments}
+              required
+              allowNone={false}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

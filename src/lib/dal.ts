@@ -21,7 +21,11 @@ export const getCurrentUser = cache(async () => {
   const session = await verifySession();
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    include: { employee: true },
+    // The employee's department comes along for the ride: it's shown in the
+    // profile header, and it is the hook any future department-aware
+    // permission rule would read from (`user.employee.departmentId`) without
+    // needing an extra query or a change to the session payload.
+    include: { employee: { include: { department: { select: { id: true, name: true } } } } },
   });
 
   if (!user) {

@@ -25,7 +25,10 @@ export async function getPendingApprovals(role: AccessRole, organizationId: stri
 
   const budgetIds = approvals.filter((a) => a.entityType === "BUDGET").map((a) => a.entityId);
   const budgets = budgetIds.length
-    ? await prisma.budget.findMany({ where: { id: { in: budgetIds }, requestedBy: { organizationId } } })
+    ? await prisma.budget.findMany({
+        where: { id: { in: budgetIds }, requestedBy: { organizationId } },
+        include: { department: { select: { id: true, name: true } } },
+      })
     : [];
   const budgetById = new Map(budgets.map((b) => [b.id, b]));
 

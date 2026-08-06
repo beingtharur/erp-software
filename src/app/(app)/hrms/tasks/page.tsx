@@ -140,7 +140,7 @@ export default async function HrmsTasksPage({
                     >
                       {task.employee.name}
                     </Link>
-                    <p className="text-xs text-muted-foreground">{task.employee.department}</p>
+                    <p className="text-xs text-muted-foreground">{task.employee.department?.name ?? "—"}</p>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {task.assignedBy?.name ?? "Self-created"}

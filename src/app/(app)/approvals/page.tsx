@@ -56,7 +56,7 @@ export default async function ApprovalsPage() {
                 ) : approval.budget ? (
                   <>
                     <div className="flex items-center gap-2">
-                      <p className="font-medium">Budget · {approval.budget.department}</p>
+                      <p className="font-medium">Budget · {approval.budget.department?.name ?? "—"}</p>
                       <Badge variant="outline" className="font-normal">
                         {formatINR(approval.budget.proposedAmount)}
                       </Badge>

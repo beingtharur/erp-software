@@ -18,6 +18,26 @@ There is no separate backend — this single Next.js app serves the UI, the API 
 
 ## Local development
 
+**0. Use the pinned Node version**
+
+This project targets **Node 24** (pinned in [`.nvmrc`](./.nvmrc)):
+
+```bash
+nvm use
+```
+
+This is not a soft preference. `better-sqlite3` — which Prisma talks to SQLite through — is a **native module compiled against the Node version that installed it**. Running the app on a different major version fails at the first query with:
+
+```
+The module '…/better_sqlite3.node' was compiled against a different Node.js
+version using NODE_MODULE_VERSION 127. This version of Node.js requires
+NODE_MODULE_VERSION 137.
+```
+
+The symptom is confusing, because pages that don't touch the database (`/login`) render fine while everything else 500s. The numbers in the message tell you which way round it is: `NODE_MODULE_VERSION 127` is Node 22, `137` is Node 24.
+
+If you do need to run on a different major version, `npm rebuild better-sqlite3` after switching — and rebuild again if you switch back. Whichever version you settle on, keep `.nvmrc` and any tooling that launches the dev server (for example `.claude/launch.json`) pointing at the same one.
+
 **1. Install dependencies**
 
 ```bash

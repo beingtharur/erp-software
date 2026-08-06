@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { JobTitleSelect, PortalAccessSelect } from "@/components/roles/role-fields";
+import { DepartmentSelect, type DepartmentOption } from "@/components/departments/department-select";
 import { createUserForEmployee } from "@/lib/actions/admin";
 import { Plus } from "lucide-react";
 import type { EmployeeRole } from "@/generated/prisma/client";
@@ -35,7 +36,13 @@ type EligibleEmployee = {
   role: EmployeeRole;
 };
 
-export function NewUserSheet({ employees }: { employees: EligibleEmployee[] }) {
+export function NewUserSheet({
+  employees,
+  departments,
+}: {
+  employees: EligibleEmployee[];
+  departments: DepartmentOption[];
+}) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"existing" | "new">(employees.length > 0 ? "existing" : "new");
   const [newJobTitle, setNewJobTitle] = useState<EmployeeRole>("ENGINEER");
@@ -149,8 +156,8 @@ export function NewUserSheet({ employees }: { employees: EligibleEmployee[] }) {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="department">Department</Label>
-                  <Input id="department" name="department" placeholder="e.g. Projects" required={mode === "new"} />
+                  <Label htmlFor="departmentId">Department</Label>
+                  <DepartmentSelect id="departmentId" departments={departments} />
                 </div>
               </div>
 

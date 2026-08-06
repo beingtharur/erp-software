@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getEmployees } from "@/lib/queries/hrms";
+import { getDepartmentOptions } from "@/lib/queries/departments";
 import { getCurrentUser } from "@/lib/dal";
 import {
   Table,
@@ -25,13 +26,16 @@ const statusVariant: Record<string, "default" | "secondary" | "destructive"> = {
 
 export default async function EmployeesPage() {
   const user = await getCurrentUser();
-  const employees = await getEmployees(user.organizationId!);
+  const [employees, departments] = await Promise.all([
+    getEmployees(user.organizationId!),
+    getDepartmentOptions(user.organizationId!),
+  ]);
   const managerOptions = employees.map((e) => ({ id: e.id, name: e.name }));
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4">
       <div className="flex justify-end">
-        <NewEmployeeSheet />
+        <NewEmployeeSheet departments={departments} />
       </div>
     <div className="rounded-lg border">
       <Table>
@@ -68,7 +72,7 @@ export default async function EmployeesPage() {
                 </Link>
               </TableCell>
               <TableCell className="text-muted-foreground">{employeeRoleName(emp.role)}</TableCell>
-              <TableCell className="text-muted-foreground">{emp.department}</TableCell>
+              <TableCell className="text-muted-foreground">{emp.department?.name ?? "—"}</TableCell>
               <TableCell className="text-muted-foreground">{emp.baseLocation}</TableCell>
               <TableCell className="text-muted-foreground">{formatDate(emp.dateOfJoining)}</TableCell>
               <TableCell>
@@ -82,13 +86,14 @@ export default async function EmployeesPage() {
                     employee={{
                       id: emp.id,
                       name: emp.name,
-                      department: emp.department,
+                      departmentId: emp.departmentId,
                       phone: emp.phone,
                       baseLocation: emp.baseLocation,
                       status: emp.status,
                       reportingToId: emp.reportingToId,
                     }}
                     managerOptions={managerOptions}
+                    departments={departments}
                   />
                   {emp.id !== user.employeeId && (
                     <DeleteEmployeeButton employeeId={emp.id} employeeName={emp.name} />

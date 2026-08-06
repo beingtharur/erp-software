@@ -17,7 +17,12 @@ import {
   getProjectOptions,
   getMySiteVisits,
 } from "@/lib/queries/me";
-import { getMyTasks, getTasksAssignedByMe } from "@/lib/queries/tasks";
+import {
+  getMyTasks,
+  getTasksAssignedByMe,
+  getEmployeeTaskSummary,
+} from "@/lib/queries/tasks";
+import { TaskSummaryCard } from "@/components/tasks/task-summary-card";
 import { getMyExpenseClaims } from "@/lib/queries/finance";
 import { getAssignableEmployees } from "@/lib/queries/crm";
 import { formatDate, formatDateTime, formatINR, initials, titleCase } from "@/lib/format";
@@ -71,6 +76,7 @@ export default async function MyHrPage() {
     todaysSummary,
     myDailySummaries,
     mySiteVisits,
+    taskSummary,
   ] = employeeId
     ? await Promise.all([
         getMyAttendance(employeeId),
@@ -85,8 +91,9 @@ export default async function MyHrPage() {
         getTodaysSummary(employeeId),
         getMyDailySummaries(employeeId),
         getMySiteVisits(employeeId),
+        getEmployeeTaskSummary(employeeId),
       ])
-    : [[], null, [], [], [], [], [], false, [], null, [], []];
+    : [[], null, [], [], [], [], [], false, [], null, [], [], null];
 
   // ADMIN can always assign tasks org-wide, matching their unrestricted
   // assignee access everywhere else (helpdesk, site visits, projects) — not
@@ -131,7 +138,7 @@ export default async function MyHrPage() {
               <p className="font-medium">{user.employee?.name ?? user.email}</p>
               <p className="text-sm text-muted-foreground">
                 {user.employee
-                  ? `${employeeRoleName(user.employee.role)} · ${user.employee.department}`
+                  ? `${employeeRoleName(user.employee.role)} · ${user.employee.department?.name ?? "No department"}`
                   : "—"}
               </p>
             </div>
@@ -326,18 +333,20 @@ export default async function MyHrPage() {
           </div>
         )}
 
+        {taskSummary && <TaskSummaryCard summary={taskSummary} />}
+
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-sm font-semibold">
                 <Link href="/me/tasks" className="hover:underline">
-                  My Tasks
+                  My board
                 </Link>
               </h2>
               <p className="text-xs text-muted-foreground">
-                Assigned to you and your own to-dos ·{" "}
+                Move work along here, or{" "}
                 <Link href="/me/tasks" className="font-medium text-primary hover:underline">
-                  open the full board
+                  open the full page
                 </Link>
               </p>
             </div>

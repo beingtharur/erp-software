@@ -53,7 +53,7 @@ export default async function EmployeeDetailPage({
                 <Badge variant="outline" className="font-normal">{employee.employeeCode}</Badge>
               </div>
               <p className="text-sm text-muted-foreground">
-                {employeeRoleName(employee.role)} · {employee.department}
+                {employeeRoleName(employee.role)} · {employee.department?.name ?? "—"}
               </p>
             </div>
           </div>
