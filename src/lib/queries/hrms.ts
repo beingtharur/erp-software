@@ -193,7 +193,16 @@ export async function getPayrollRecords(organizationId: string) {
   return prisma.payrollRecord.findMany({
     where: { employee: { organizationId } },
     orderBy: [{ year: "desc" }, { month: "desc" }],
-    include: { employee: true },
+    include: {
+      employee: {
+        include: {
+          // Tells the row's salary button whether to say "Set up Salary" (never
+          // configured — a past PayrollRecord can exist from before a structure
+          // was required, e.g. seed data) or "Change Salary Structure".
+          salaryStructures: { where: { isActive: true }, take: 1 },
+        },
+      },
+    },
   });
 }
 

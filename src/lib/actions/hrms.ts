@@ -257,6 +257,9 @@ export async function createSalaryStructure(
   ]);
 
   revalidatePath(`/hrms/employees/${employeeId}`);
+  // Reachable both from the employee's own profile and from the payroll row
+  // menu — both surfaces need to see the new "current" structure and label.
+  revalidatePath("/hrms/payroll");
   return { success: true };
 }
 

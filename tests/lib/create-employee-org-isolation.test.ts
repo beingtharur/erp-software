@@ -51,7 +51,7 @@ function formDataFor(orgLabel: string) {
   const fd = new FormData();
   fd.set("name", "Kiran Deshpande");
   fd.set("role", "ENGINEER");
-  fd.set("department", "Projects");
+  fd.set("departmentId", "");
   fd.set("email", "kiran.deshpande@example.com");
   fd.set("phone", "+91 90000 00000");
   fd.set("dateOfJoining", "2026-01-01");

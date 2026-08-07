@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getPayrollRecords, getEmployeesWithoutSalaryStructure } from "@/lib/queries/hrms";
 import { getCurrentUser } from "@/lib/dal";
-import { MissingSalaryRowMenu } from "@/components/hrms/missing-salary-row-menu";
+import { PayrollSalaryRowMenu } from "@/components/hrms/payroll-salary-row-menu";
 import {
   Table,
   TableBody,
@@ -37,19 +37,18 @@ export default async function PayrollPage() {
             {employeesMissingSalary.length === 1 ? "" : "s"} without a salary structure
           </p>
           <p className="mt-0.5 text-muted-foreground">
-            Payroll skips anyone without one set up — use the ⋯ menu beside them to add one.
+            Payroll skips anyone without one set up — set theirs up from their row in the table below
+            if they have one, or open their profile.
           </p>
-          <div className="mt-2 flex flex-col gap-1.5">
+          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
             {employeesMissingSalary.map((e) => (
-              <div
+              <Link
                 key={e.id}
-                className="flex items-center justify-between gap-3 rounded-md border bg-background px-3 py-1.5"
+                href={`/hrms/employees/${e.id}`}
+                className="text-primary hover:underline"
               >
-                <Link href={`/hrms/employees/${e.id}`} className="text-primary hover:underline">
-                  {e.name} ({e.employeeCode})
-                </Link>
-                <MissingSalaryRowMenu employeeId={e.id} />
-              </div>
+                {e.name} ({e.employeeCode})
+              </Link>
             ))}
           </div>
         </div>
@@ -68,12 +67,13 @@ export default async function PayrollPage() {
               <TableHead className="text-right">Deductions</TableHead>
               <TableHead className="text-right">Net Pay</TableHead>
               <TableHead className="text-right">Status</TableHead>
+              <TableHead className="text-right"><span className="sr-only">Salary structure</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {records.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
+                <TableCell colSpan={8} className="text-center text-sm text-muted-foreground">
                   No payroll records yet. Generate a period above.
                 </TableCell>
               </TableRow>
@@ -103,6 +103,14 @@ export default async function PayrollPage() {
                       {isAdmin && <UnlockPayrollButton payrollId={r.id} />}
                     </div>
                   )}
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end">
+                    <PayrollSalaryRowMenu
+                      employeeId={r.employeeId}
+                      current={r.employee.salaryStructures[0] ?? null}
+                    />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

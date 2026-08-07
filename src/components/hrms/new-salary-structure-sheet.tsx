@@ -83,7 +83,7 @@ export function NewSalaryStructureSheet({
       {!isControlled && (
         <SheetTrigger render={<Button size="sm" variant="outline" />}>
           <Plus />
-          {current ? "Update Salary" : "Set Up Salary"}
+          {current ? "Change Salary Structure" : "Set up Salary"}
         </SheetTrigger>
       )}
       <SheetContent className="sm:max-w-md">
