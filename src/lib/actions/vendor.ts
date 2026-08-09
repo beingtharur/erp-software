@@ -206,8 +206,17 @@ export async function createPurchaseOrder(
   // poNumber is globally unique (not scoped per organization), so the count
   // driving it must be global too; retry on collision (see sequence.ts).
   const po = await withUniqueCodeRetry(async () => {
-    const count = await prisma.purchaseOrder.count();
-    const poNumber = `PO-${7000 + count + 1}`;
+    const latest = await prisma.purchaseOrder.findFirst({
+      orderBy: {
+        poNumber: "desc",
+      },
+    });
+
+    const lastNumber = latest
+      ? parseInt(latest.poNumber.replace("PO-", ""), 10)
+      : 7000;
+
+    const poNumber = `PO-${lastNumber + 1}`;
     return prisma.purchaseOrder.create({
       data: {
         poNumber,
@@ -407,8 +416,17 @@ export async function duplicatePurchaseOrder(poId: string) {
   // driving it must be global too — see the identical comment in
   // createPurchaseOrder; retry on collision (see sequence.ts).
   const po = await withUniqueCodeRetry(async () => {
-    const count = await prisma.purchaseOrder.count();
-    const poNumber = `PO-${7000 + count + 1}`;
+    const latest = await prisma.purchaseOrder.findFirst({
+      orderBy: {
+        poNumber: "desc",
+      },
+    });
+
+    const lastNumber = latest
+      ? parseInt(latest.poNumber.replace("PO-", ""), 10)
+      : 7000;
+
+    const poNumber = `PO-${lastNumber + 1}`;
     return prisma.purchaseOrder.create({
       data: {
         poNumber,
