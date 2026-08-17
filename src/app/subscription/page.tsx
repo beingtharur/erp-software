@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { CalendarClock, CheckCircle2, Clock, ShieldAlert, XCircle } from "lucide-react";
 import { getCurrentUser, getCurrentOrganization } from "@/lib/dal";
 import { computeEffectiveAccess } from "@/lib/billing/access";
@@ -21,6 +22,19 @@ export default async function SubscriptionStatusPage({
   const home = roleHome[user.accessRole] ?? "/";
   const blockedModuleTitle = navSections.find((s) => s.key === m)?.title;
 
+  // Self-heal stale/bookmarked "blocked" links: requireModuleAccess() only
+  // ever generates this query string when the module is genuinely excluded
+  // at redirect time, but access can change afterward (a subscription fix, a
+  // plan upgrade) and the URL doesn't. Land on the clean status page instead
+  // of showing a warning that's no longer true.
+  if (blocked === "module" && m && access.unlockedModules.includes(m)) {
+    redirect("/subscription");
+  }
+
+  // Mirrors requireModuleAccess()'s own check — the banner must reflect
+  // current access, not just echo the query string back unconditionally.
+  const isActuallyBlocked = blocked === "module" && Boolean(m) && !access.unlockedModules.includes(m ?? "");
+
   const statusMeta = access.isTrial
     ? { label: "Free trial", icon: Clock, tone: "text-blue-600 bg-blue-500/10" }
     : access.hasAccess
@@ -42,7 +56,7 @@ export default async function SubscriptionStatusPage({
           </div>
         </div>
 
-        {blocked === "module" && (
+        {isActuallyBlocked && (
           <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
             <ShieldAlert className="mt-0.5 size-4 shrink-0" />
             <p>
