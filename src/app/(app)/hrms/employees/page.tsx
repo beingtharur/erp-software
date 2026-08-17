@@ -12,10 +12,12 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { formatDate, initials, titleCase } from "@/lib/format";
 import { employeeRoleName } from "@/lib/roles";
 import { NewEmployeeSheet } from "@/components/hrms/new-employee-sheet";
 import { EmployeeRowMenu } from "@/components/hrms/employee-row-menu";
+import { Download } from "lucide-react";
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive"> = {
   ACTIVE: "default",
@@ -33,7 +35,11 @@ export default async function EmployeesPage() {
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" nativeButton={false} render={<a href="/api/exports/employees" />}>
+          <Download />
+          Export to Excel
+        </Button>
         <NewEmployeeSheet departments={departments} />
       </div>
     <div className="rounded-lg border">
