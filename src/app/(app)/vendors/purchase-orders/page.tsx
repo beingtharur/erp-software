@@ -9,11 +9,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatDate, formatINR, titleCase } from "@/lib/format";
 import { NewPurchaseOrderSheet } from "@/components/vendors/new-po-sheet";
 import { EditPurchaseOrderSheet } from "@/components/vendors/edit-po-sheet";
 import { DeletePoButton, ReorderPoButton, CancelPoButton } from "@/components/vendors/po-row-actions";
 import { isValidTransition, PO_STATUS_TRANSITIONS, type PoStatus } from "@/lib/status-transitions";
+import { Download } from "lucide-react";
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   DRAFT: "outline",
@@ -33,7 +35,11 @@ export default async function PurchaseOrdersPage() {
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" nativeButton={false} render={<a href="/api/exports/purchase-orders" />}>
+          <Download />
+          Export to Excel
+        </Button>
         <NewPurchaseOrderSheet vendors={vendors} />
       </div>
       <div className="rounded-lg border">

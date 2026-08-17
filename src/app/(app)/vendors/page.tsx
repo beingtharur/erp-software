@@ -10,9 +10,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { NewVendorSheet } from "@/components/vendors/new-vendor-sheet";
 import { VendorRatingControl } from "@/components/vendors/vendor-rating-control";
 import { DeleteVendorButton } from "@/components/vendors/vendor-row-actions";
+import { Download } from "lucide-react";
 
 export default async function VendorsPage() {
   const user = await getCurrentUser();
@@ -20,7 +22,11 @@ export default async function VendorsPage() {
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" nativeButton={false} render={<a href="/api/exports/vendors" />}>
+          <Download />
+          Export to Excel
+        </Button>
         <NewVendorSheet />
       </div>
       <div className="rounded-lg border">
