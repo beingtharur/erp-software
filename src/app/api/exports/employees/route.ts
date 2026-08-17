@@ -3,6 +3,7 @@ import { requireRole, requireModuleAccess, getCurrentUser, getCurrentOrganizatio
 import { getEmployees } from "@/lib/queries/hrms";
 import { buildReportWorkbook, buildExportFilename } from "@/lib/export/workbook";
 import { employeeExportColumns, type EmployeeExportRow } from "@/lib/export/employees";
+import { logExport } from "@/lib/export/audit";
 
 // Same access gates as /hrms/employees, the page this mirrors — exports don't
 // get their own permission concept, they inherit the one for the data they expose.
@@ -20,6 +21,15 @@ export async function GET(request: NextRequest) {
   if (status) {
     rows = rows.filter((r: EmployeeExportRow) => r.status === status);
   }
+
+  // Logged after the permission checks pass but before the response is built —
+  // only genuinely-authorized, actually-served downloads get recorded.
+  await logExport({
+    report: "employees",
+    organizationId: user.organizationId!,
+    userId: user.id,
+    filters: status ? { status } : undefined,
+  });
 
   const buffer = await buildReportWorkbook({
     reportTitle: "Employee Report",

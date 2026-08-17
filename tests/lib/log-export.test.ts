@@ -1,0 +1,48 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const logAuditMock = vi.fn();
+vi.mock("@/lib/audit", () => ({ logAudit: logAuditMock }));
+
+const { logExport } = await import("@/lib/export/audit");
+
+beforeEach(() => {
+  logAuditMock.mockResolvedValue(undefined);
+});
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
+
+describe("logExport", () => {
+  it("records the report, actor, and org via the existing AuditLog trail — no new table", async () => {
+    await logExport({ report: "employees", organizationId: "org_1", userId: "user_1" });
+
+    expect(logAuditMock).toHaveBeenCalledWith({
+      organizationId: "org_1",
+      actorId: "user_1",
+      action: "export.employees",
+      entityType: "Export",
+      entityId: "employees",
+      metadata: undefined,
+    });
+  });
+
+  it("includes filters in metadata when provided", async () => {
+    await logExport({
+      report: "employees",
+      organizationId: "org_1",
+      userId: "user_1",
+      filters: { status: "ACTIVE" },
+    });
+
+    expect(logAuditMock).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: { filters: { status: "ACTIVE" } } })
+    );
+  });
+
+  it("omits metadata entirely when filters is an empty object, not an empty-object noise entry", async () => {
+    await logExport({ report: "employees", organizationId: "org_1", userId: "user_1", filters: {} });
+
+    expect(logAuditMock).toHaveBeenCalledWith(expect.objectContaining({ metadata: undefined }));
+  });
+});
