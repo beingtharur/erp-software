@@ -10,8 +10,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { titleCase } from "@/lib/format";
 import { NewClientSheet } from "@/components/crm/new-client-sheet";
+import { Download } from "lucide-react";
 
 export default async function ClientsPage() {
   const user = await getCurrentUser();
@@ -19,7 +21,11 @@ export default async function ClientsPage() {
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" nativeButton={false} render={<a href="/api/exports/clients" />}>
+          <Download />
+          Export to Excel
+        </Button>
         <NewClientSheet />
       </div>
       <div className="rounded-lg border">

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { computeAmcStatus } from "@/lib/amc-status";
-import type { LeadStage, LeadSource, ProductLine } from "@/generated/prisma/client";
+import type { LeadStage, LeadSource, ProductLine, Industry } from "@/generated/prisma/client";
 
 export async function getPipelineLeads(organizationId: string) {
   return prisma.lead.findMany({
@@ -66,6 +66,35 @@ export async function getClients(organizationId: string) {
     orderBy: { name: "asc" },
     include: {
       _count: { select: { leads: true, projects: true, amcContracts: true } },
+    },
+  });
+}
+
+export type ClientExportFilters = {
+  industry?: string;
+  tier?: string;
+  city?: string;
+  state?: string;
+  status?: string;
+};
+
+// No default date filter at all — Client is master data (like Employee/
+// Vendor), and there's no natural date field to filter a "customer
+// register" by beyond createdAt, which isn't part of the approved filter
+// set for this export.
+export async function getClientsForExport(organizationId: string, filters: ClientExportFilters) {
+  return prisma.client.findMany({
+    where: {
+      organizationId,
+      industry: filters.industry ? (filters.industry as Industry) : undefined,
+      tier: filters.tier || undefined,
+      city: filters.city || undefined,
+      state: filters.state || undefined,
+      status: filters.status || undefined,
+    },
+    orderBy: { name: "asc" },
+    include: {
+      _count: { select: { leads: true, projects: true } },
     },
   });
 }
