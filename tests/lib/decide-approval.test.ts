@@ -186,9 +186,9 @@ describe("decideApproval", () => {
     );
   });
 
-  it("enforces the approverRole gate using the request's stored role, not the entity type", async () => {
+  it("enforces the approverRole gate using the request's stored role, not the entity type — plus ADMIN as a universal decider", async () => {
     findFirstMock.mockResolvedValue(baseApproval({ approverRole: "FINANCE" }));
     await decideApproval("appr_1", "APPROVED");
-    expect(requireRoleMock).toHaveBeenCalledWith(["FINANCE"]);
+    expect(requireRoleMock).toHaveBeenCalledWith(["FINANCE", "ADMIN"]);
   });
 });

@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/db";
 import { getTaskStats } from "@/lib/queries/tasks";
 import { getDepartmentHeadcount } from "@/lib/queries/departments";
+import { getPendingExpenseClaimsForHr } from "@/lib/queries/finance";
+import { attendanceDayValue } from "@/lib/payroll";
+import type { AccessRole } from "@/generated/prisma/client";
 
 function startOfToday() {
   const d = new Date();
@@ -8,7 +11,7 @@ function startOfToday() {
   return d;
 }
 
-export async function getHrmsOverview(organizationId: string) {
+export async function getHrmsOverview(organizationId: string, viewerRole: AccessRole) {
   const today = startOfToday();
   const now = new Date();
 
@@ -16,11 +19,13 @@ export async function getHrmsOverview(organizationId: string) {
     totalActive,
     attendanceToday,
     pendingLeave,
+    pendingHalfDay,
     onLeaveToday,
     pendingPayroll,
     recentLeaveRequests,
     departmentHeadcount,
     taskStats,
+    pendingExpenseClaims,
   ] = await Promise.all([
     prisma.employee.count({ where: { status: "ACTIVE", organizationId, deletedAt: null } }),
     prisma.attendance.groupBy({
@@ -29,6 +34,11 @@ export async function getHrmsOverview(organizationId: string) {
       _count: true,
     }),
     prisma.leaveRequest.count({ where: { status: "PENDING", employee: { organizationId } } }),
+    // Half-Day approvals are a distinct workflow the client wants surfaced on
+    // its own, separate from the general "pending leave" figure above.
+    prisma.leaveRequest.count({
+      where: { status: "PENDING", type: "HALF_DAY", employee: { organizationId } },
+    }),
     prisma.attendance.count({ where: { date: today, status: "ON_LEAVE", employee: { organizationId } } }),
     prisma.payrollRecord.count({
       where: {
@@ -51,17 +61,22 @@ export async function getHrmsOverview(organizationId: string) {
     // Reuses the same counts the Tasks console header shows, so the two views
     // can never disagree about what "overdue" or "completed today" means.
     getTaskStats(organizationId),
+    // HR dashboard visibility into pending expense claims — see the client's
+    // Travel Expense requirement and Organization.expenseApproverRole.
+    getPendingExpenseClaimsForHr(organizationId, viewerRole),
   ]);
 
   return {
     totalActive,
     attendanceToday,
     pendingLeave,
+    pendingHalfDay,
     onLeaveToday,
     pendingPayroll,
     recentLeaveRequests,
     departmentHeadcount,
     taskStats,
+    pendingExpenseClaims,
   };
 }
 
@@ -155,18 +170,24 @@ export async function getAttendanceToday(organizationId: string) {
   return employees.map((employee) => {
     const record = recordByEmployee.get(employee.id);
     if (record) {
-      return { ...record, employee, leaveType: null };
+      return { ...record, employee, leaveType: null, dayValue: attendanceDayValue(record.status) };
     }
     const leave = leaveByEmployee.get(employee.id);
     if (leave) {
+      // A Half-Day leave is reflected as HALF_DAY here too, not the generic
+      // ON_LEAVE placeholder — decideLeaveRequest also persists a real
+      // Attendance row on approval, so this synthetic fallback only matters
+      // before that write lands or as a defense-in-depth backstop.
+      const status = leave.type === "HALF_DAY" ? ("HALF_DAY" as const) : ("ON_LEAVE" as const);
       return {
         id: `leave-${leave.id}`,
         employee,
         checkIn: null,
         checkOut: null,
         hoursWorked: 0,
-        status: "ON_LEAVE" as const,
+        status,
         leaveType: leave.type,
+        dayValue: attendanceDayValue(status, leave.type),
       };
     }
     return {
@@ -177,8 +198,31 @@ export async function getAttendanceToday(organizationId: string) {
       hoursWorked: 0,
       status: "ABSENT" as const,
       leaveType: null,
+      dayValue: 0,
     };
   });
+}
+
+// Live "leave taken this year" usage summary by type — half-days count as 0.5.
+// There is no entitlement/quota system anywhere in this schema, so this is
+// deliberately a usage summary, not a remaining-balance calculation.
+export async function getLeaveBalanceSummary(employeeId: string, year: number) {
+  const yearStart = new Date(year, 0, 1);
+  const yearEnd = new Date(year + 1, 0, 1);
+
+  const grouped = await prisma.leaveRequest.groupBy({
+    by: ["type"],
+    where: {
+      employeeId,
+      status: "APPROVED",
+      startDate: { gte: yearStart, lt: yearEnd },
+    },
+    _sum: { days: true },
+  });
+
+  return grouped
+    .map((g) => ({ type: g.type, days: g._sum.days ?? 0 }))
+    .sort((a, b) => b.days - a.days);
 }
 
 export async function getLeaveRequests(organizationId: string) {

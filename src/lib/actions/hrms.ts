@@ -49,6 +49,21 @@ export async function decideLeaveRequest(
     throw new Error("This leave request has already been decided");
   }
   const leave = { ...existing, status: decision };
+
+  // Approved Half-Day requests become a real, durable Attendance row (not just
+  // a same-day synthetic placeholder — see getAttendanceToday) so they show up
+  // in attendance records/reports for that date going forward.
+  if (decision === "APPROVED" && leave.type === "HALF_DAY") {
+    const date = new Date(leave.startDate);
+    date.setHours(0, 0, 0, 0);
+    await prisma.attendance.upsert({
+      where: { employeeId_date: { employeeId: leave.employeeId, date } },
+      create: { employeeId: leave.employeeId, date, status: "HALF_DAY", hoursWorked: 0 },
+      update: { status: "HALF_DAY" },
+    });
+    revalidatePath("/hrms/attendance");
+  }
+
   await notifyEmployee(
     leave.employeeId,
     `Your ${titleCase(leave.type)} leave request was ${decision === "APPROVED" ? "approved" : "rejected"}.`,

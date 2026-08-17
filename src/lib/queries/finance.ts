@@ -1,21 +1,92 @@
 import { prisma } from "@/lib/db";
+import type { AccessRole, Prisma } from "@/generated/prisma/client";
 
-export async function getExpenseClaims(organizationId: string) {
+export type ExpenseClaimFilters = {
+  status?: string;
+  search?: string;
+};
+
+export async function getExpenseClaims(organizationId: string, filters: ExpenseClaimFilters = {}) {
+  const where: Prisma.ExpenseClaimWhereInput = { employee: { organizationId } };
+  if (filters.status && filters.status !== "ALL") {
+    where.status = filters.status as never;
+  }
+  if (filters.search) {
+    where.OR = [
+      { claimNumber: { contains: filters.search } },
+      { description: { contains: filters.search } },
+      { employee: { name: { contains: filters.search } } },
+    ];
+  }
+
   const claims = await prisma.expenseClaim.findMany({
-    where: { employee: { organizationId } },
+    where,
     orderBy: { createdAt: "desc" },
-    include: { employee: true },
+    include: {
+      employee: { include: { department: { select: { name: true } } } },
+      attachments: true,
+    },
   });
 
-  const pendingClaimIds = claims.filter((c) => c.status === "PENDING").map((c) => c.id);
-  const pendingApprovals = pendingClaimIds.length
+  // Pull the approval request for every claim (any status, not just pending) so
+  // the list can show a lightweight "Approved by X on Y" history line, plus the
+  // submitter's note, alongside the live pending decide-buttons.
+  const claimIds = claims.map((c) => c.id);
+  const approvals = claimIds.length
     ? await prisma.approvalRequest.findMany({
-        where: { entityType: "EXPENSE_CLAIM", entityId: { in: pendingClaimIds }, status: "PENDING" },
+        where: { entityType: "EXPENSE_CLAIM", entityId: { in: claimIds } },
+        include: { decidedBy: { select: { name: true } } },
+        orderBy: { createdAt: "desc" },
       })
     : [];
-  const approvalIdByClaimId = new Map(pendingApprovals.map((a) => [a.entityId, a.id]));
+  const approvalByClaimId = new Map(approvals.map((a) => [a.entityId, a]));
 
-  return claims.map((c) => ({ ...c, approvalId: approvalIdByClaimId.get(c.id) ?? null }));
+  return claims.map((c) => {
+    const approval = approvalByClaimId.get(c.id);
+    return {
+      ...c,
+      approvalId: approval?.status === "PENDING" ? approval.id : null,
+      approverRole: approval?.approverRole ?? null,
+      note: approval?.note ?? null,
+      decidedByName: approval?.decidedBy?.name ?? null,
+      decidedOn: approval?.decidedOn ?? null,
+    };
+  });
+}
+
+// Pending expense claims for the HRMS Overview dashboard card — HR always has
+// visibility here regardless of which role is configured to decide (see
+// Organization.expenseApproverRole and getPendingApprovals, whose canDecide
+// logic this mirrors: ADMIN can always decide, everyone else only when
+// they're the stamped approverRole).
+export async function getPendingExpenseClaimsForHr(
+  organizationId: string,
+  viewerRole: AccessRole,
+  take = 6
+) {
+  const claims = await prisma.expenseClaim.findMany({
+    where: { status: "PENDING", employee: { organizationId } },
+    orderBy: { createdAt: "asc" },
+    take,
+    include: { employee: { select: { name: true, department: { select: { name: true } } } } },
+  });
+  const pendingApprovals = claims.length
+    ? await prisma.approvalRequest.findMany({
+        where: { entityType: "EXPENSE_CLAIM", entityId: { in: claims.map((c) => c.id) }, status: "PENDING" },
+      })
+    : [];
+  const approvalByClaimId = new Map(pendingApprovals.map((a) => [a.entityId, a]));
+
+  const total = await prisma.expenseClaim.count({ where: { status: "PENDING", employee: { organizationId } } });
+
+  return {
+    total,
+    claims: claims.map((c) => {
+      const approval = approvalByClaimId.get(c.id);
+      const canDecide = viewerRole === "ADMIN" || approval?.approverRole === viewerRole;
+      return { ...c, approvalId: approval?.id ?? null, canDecide };
+    }),
+  };
 }
 
 export async function getMyExpenseClaims(employeeId: string) {

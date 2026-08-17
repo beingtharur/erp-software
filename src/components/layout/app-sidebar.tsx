@@ -87,29 +87,33 @@ export function AppSidebar({
                   <span>My Tasks</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              {/* HR now has a real reason to visit Approvals too — they always
+                  see pending expense claims there (view, or decide when their
+                  org's expenseApproverRole is set to HR), even though the
+                  page is otherwise Admin's approval center. */}
+              {(accessRole === "ADMIN" || accessRole === "HR") && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={pathname === "/approvals"}
+                    tooltip="Approvals"
+                    render={<Link href="/approvals" />}
+                  >
+                    <ClipboardCheck />
+                    <span>Approvals</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               {accessRole === "ADMIN" && (
-                <>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={pathname === "/approvals"}
-                      tooltip="Approvals"
-                      render={<Link href="/approvals" />}
-                    >
-                      <ClipboardCheck />
-                      <span>Approvals</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={pathname.startsWith("/admin")}
-                      tooltip="User Management"
-                      render={<Link href="/admin/users" />}
-                    >
-                      <ShieldCheck />
-                      <span>User Management</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={pathname.startsWith("/admin")}
+                    tooltip="User Management"
+                    render={<Link href="/admin/users" />}
+                  >
+                    <ShieldCheck />
+                    <span>User Management</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               )}
             </SidebarMenu>
           </SidebarGroupContent>

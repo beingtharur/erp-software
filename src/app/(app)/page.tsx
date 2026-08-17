@@ -19,6 +19,7 @@ import {
   ShieldAlert,
   ClipboardList,
   ArrowRight,
+  Receipt,
 } from "lucide-react";
 
 export default async function OverviewPage() {
@@ -66,9 +67,16 @@ export default async function OverviewPage() {
           <KpiCard
             label="Pending Leave"
             value={String(data.pendingLeave)}
-            sub="awaiting approval"
+            sub={`awaiting approval${data.pendingHalfDay > 0 ? ` · ${data.pendingHalfDay} half-day` : ""}`}
             icon={Plane}
             tone={data.pendingLeave > 0 ? "warning" : "default"}
+          />
+          <KpiCard
+            label="Pending Expense Claims"
+            value={String(data.pendingExpenseClaimsCount)}
+            sub={formatINR(data.pendingExpenseClaimsAmount)}
+            icon={Receipt}
+            tone={data.pendingExpenseClaimsCount > 0 ? "warning" : "default"}
           />
           <KpiCard
             label="Overdue Payments"

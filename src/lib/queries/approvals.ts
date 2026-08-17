@@ -1,9 +1,22 @@
 import { prisma } from "@/lib/db";
-import type { AccessRole } from "@/generated/prisma/client";
+import type { AccessRole, Prisma } from "@/generated/prisma/client";
 
 export async function getPendingApprovals(role: AccessRole, organizationId: string) {
+  // ADMIN and HR always see every pending expense claim for visibility (per
+  // the client's ask), even when a different role is the configured decider
+  // (Organization.expenseApproverRole) — canDecide below is what actually
+  // gates the Approve/Reject buttons, not this visibility filter.
+  const where: Prisma.ApprovalRequestWhereInput = {
+    status: "PENDING",
+    requestedBy: { organizationId },
+    OR:
+      role === "ADMIN" || role === "HR"
+        ? [{ approverRole: role }, { entityType: "EXPENSE_CLAIM" }]
+        : [{ approverRole: role }],
+  };
+
   const approvals = await prisma.approvalRequest.findMany({
-    where: { status: "PENDING", approverRole: role, requestedBy: { organizationId } },
+    where,
     include: { requestedBy: true },
     orderBy: { createdAt: "asc" },
   });
@@ -19,7 +32,10 @@ export async function getPendingApprovals(role: AccessRole, organizationId: stri
 
   const claimIds = approvals.filter((a) => a.entityType === "EXPENSE_CLAIM").map((a) => a.entityId);
   const claims = claimIds.length
-    ? await prisma.expenseClaim.findMany({ where: { id: { in: claimIds }, employee: { organizationId } } })
+    ? await prisma.expenseClaim.findMany({
+        where: { id: { in: claimIds }, employee: { organizationId } },
+        include: { employee: { select: { name: true, department: { select: { name: true } } } }, attachments: true },
+      })
     : [];
   const claimById = new Map(claims.map((c) => [c.id, c]));
 
@@ -37,5 +53,8 @@ export async function getPendingApprovals(role: AccessRole, organizationId: stri
     purchaseOrder: a.entityType === "PURCHASE_ORDER" ? (poById.get(a.entityId) ?? null) : null,
     expenseClaim: a.entityType === "EXPENSE_CLAIM" ? (claimById.get(a.entityId) ?? null) : null,
     budget: a.entityType === "BUDGET" ? (budgetById.get(a.entityId) ?? null) : null,
+    // Mirrors decideApproval's own authorization check — ADMIN can always
+    // decide, everyone else only when they're the stamped approverRole.
+    canDecide: role === "ADMIN" || a.approverRole === role,
   }));
 }

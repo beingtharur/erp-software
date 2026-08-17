@@ -6,6 +6,7 @@ const tabs = [
   { title: "Vendors", href: "/vendors" },
   { title: "Purchase Orders", href: "/vendors/purchase-orders" },
   { title: "Payments", href: "/vendors/payments" },
+  { title: "Quotations", href: "/vendors/quotations" },
 ];
 
 export default async function VendorsLayout({ children }: { children: React.ReactNode }) {

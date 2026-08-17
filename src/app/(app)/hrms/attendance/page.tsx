@@ -44,12 +44,13 @@ export default async function AttendancePage() {
               <TableHead>Check Out</TableHead>
               <TableHead className="text-right">Hours</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="text-right">Day Value</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {attendance.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
+                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
                   No active employees yet — add someone under Employees and today&apos;s roster will
                   appear here.
                 </TableCell>
@@ -75,6 +76,9 @@ export default async function AttendancePage() {
                       {titleCase(a.leaveType)}
                     </span>
                   )}
+                </TableCell>
+                <TableCell className="text-right font-mono text-muted-foreground">
+                  {a.dayValue.toFixed(1)}
                 </TableCell>
               </TableRow>
             ))}

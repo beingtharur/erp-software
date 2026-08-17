@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getEmployeeDetail } from "@/lib/queries/hrms";
+import { getEmployeeDetail, getLeaveBalanceSummary } from "@/lib/queries/hrms";
 import { getEmployeeTaskSummary } from "@/lib/queries/tasks";
 import { getCurrentUser } from "@/lib/dal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,7 +36,9 @@ export default async function EmployeeDetailPage({
 
   if (!employee) notFound();
 
+  const currentYear = new Date().getFullYear();
   const taskSummary = await getEmployeeTaskSummary(employee.id);
+  const leaveBalance = await getLeaveBalanceSummary(employee.id, currentYear);
   const activeSalaryStructure = employee.salaryStructures.find((s) => s.isActive) ?? null;
 
   return (
@@ -129,7 +131,12 @@ export default async function EmployeeDetailPage({
             {employee.leaveRequests.map((l) => (
               <div key={l.id} className="flex items-center justify-between text-sm border-b pb-2 last:border-0 last:pb-0">
                 <div>
-                  <p>{titleCase(l.type)}</p>
+                  <p>
+                    {titleCase(l.type)}
+                    {l.type === "HALF_DAY" && l.halfDayPeriod && (
+                      <span className="text-xs text-muted-foreground"> · {titleCase(l.halfDayPeriod)}</span>
+                    )}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {formatDate(l.startDate)} – {formatDate(l.endDate)}
                   </p>
@@ -142,6 +149,26 @@ export default async function EmployeeDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Leave taken · {currentYear}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {leaveBalance.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No approved leave this year.</p>
+          ) : (
+            <div className="flex flex-wrap gap-4">
+              {leaveBalance.map((b) => (
+                <div key={b.type} className="flex flex-col">
+                  <span className="text-xs text-muted-foreground">{titleCase(b.type)}</span>
+                  <span className="text-lg font-semibold tabular-nums">{b.days}d</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="flex-row items-center justify-between space-y-0">

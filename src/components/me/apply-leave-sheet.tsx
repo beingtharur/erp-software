@@ -31,16 +31,28 @@ const LEAVE_TYPE_LABEL: Record<string, string> = {
   SICK: "Sick",
   EARNED: "Earned",
   UNPAID: "Unpaid",
+  HALF_DAY: "Half Day",
+};
+
+const HALF_DAY_PERIOD_LABEL: Record<string, string> = {
+  FIRST_HALF: "First Half",
+  SECOND_HALF: "Second Half",
+  CUSTOM: "Custom",
 };
 
 export function ApplyLeaveSheet() {
   const [open, setOpen] = useState(false);
+  const [type, setType] = useState("CASUAL");
+  const [halfDayPeriod, setHalfDayPeriod] = useState("FIRST_HALF");
   const [state, formAction, pending] = useActionState(applyLeave, undefined);
+  const isHalfDay = type === "HALF_DAY";
 
   useEffect(() => {
     if (state?.success) {
       toast.success("Leave request submitted");
       setOpen(false);
+      setType("CASUAL");
+      setHalfDayPeriod("FIRST_HALF");
     }
   }, [state]);
 
@@ -58,7 +70,7 @@ export function ApplyLeaveSheet() {
         <form action={formAction} className="flex flex-1 flex-col gap-4 overflow-y-auto px-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="type">Leave type</Label>
-            <Select name="type" required defaultValue="CASUAL">
+            <Select name="type" required value={type} onValueChange={(v) => setType(String(v ?? "CASUAL"))}>
               <SelectTrigger id="type" className="w-full">
                 <SelectValue placeholder="Select type">
                   {(value: unknown) => LEAVE_TYPE_LABEL[value as string] ?? "Casual"}
@@ -69,20 +81,62 @@ export function ApplyLeaveSheet() {
                 <SelectItem value="SICK">Sick</SelectItem>
                 <SelectItem value="EARNED">Earned</SelectItem>
                 <SelectItem value="UNPAID">Unpaid</SelectItem>
+                <SelectItem value="HALF_DAY">Half Day</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="startDate">Start date</Label>
-              <Input id="startDate" name="startDate" type="date" required />
+          {isHalfDay ? (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="startDate">Date</Label>
+                <Input id="startDate" name="startDate" type="date" required />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="halfDayPeriod">Period</Label>
+                <Select
+                  name="halfDayPeriod"
+                  required
+                  value={halfDayPeriod}
+                  onValueChange={(v) => setHalfDayPeriod(String(v ?? "FIRST_HALF"))}
+                >
+                  <SelectTrigger id="halfDayPeriod" className="w-full">
+                    <SelectValue placeholder="Select period">
+                      {(value: unknown) => HALF_DAY_PERIOD_LABEL[value as string] ?? "First Half"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="FIRST_HALF">First Half</SelectItem>
+                    <SelectItem value="SECOND_HALF">Second Half</SelectItem>
+                    <SelectItem value="CUSTOM">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {halfDayPeriod === "CUSTOM" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="halfDayStartTime">From</Label>
+                    <Input id="halfDayStartTime" name="halfDayStartTime" type="time" required />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="halfDayEndTime">To</Label>
+                    <Input id="halfDayEndTime" name="halfDayEndTime" type="time" required />
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="startDate">Start date</Label>
+                <Input id="startDate" name="startDate" type="date" required />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="endDate">End date</Label>
+                <Input id="endDate" name="endDate" type="date" required />
+              </div>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="endDate">End date</Label>
-              <Input id="endDate" name="endDate" type="date" required />
-            </div>
-          </div>
+          )}
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="reason">Reason</Label>

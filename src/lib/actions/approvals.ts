@@ -21,7 +21,13 @@ export async function decideApproval(approvalId: string, decision: "APPROVED" | 
   // The engine is generic: who's allowed to decide is data-driven off the request
   // itself, not hardcoded per entity type. The organizationId filter above is what
   // actually stops a same-role user in a different org from deciding this request.
-  await requireRole([approval.approverRole]);
+  // ADMIN can always decide any request regardless of the stamped approverRole —
+  // matches the "Admin: full access" convention used everywhere else in the app
+  // (Quotations, POs, etc.) and is a no-op for PO/Budget/PaymentConfirmation,
+  // whose approverRole is already always ADMIN. It matters for EXPENSE_CLAIM,
+  // whose approverRole is configurable per org (see Organization.expenseApproverRole)
+  // and may not be ADMIN.
+  await requireRole([approval.approverRole, "ADMIN"]);
 
   // Maker-checker: for payment confirmations specifically, the person deciding
   // must differ from whoever submitted it — otherwise the same procurement/admin

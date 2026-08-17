@@ -23,15 +23,26 @@ model Organization {
   slug      String   @unique
   createdAt DateTime @default(now())
 
-  users         User[]
-  employees     Employee[]
-  departments   Department[]
-  clients       Client[]
-  vendors       Vendor[]
-  geofenceZones GeofenceZone[]
-  subscription  Subscription?
-  payments      Payment[]
-  auditLogs     AuditLog[]
+  // Which role's approval queue a new ExpenseClaim routes to (see
+  // requestApproval in actions/finance.ts). Null means "use the system
+  // default" (FINANCE) — most orgs never need to touch this. It exists
+  // because a small org may run Finance duties through its Admin (or HR)
+  // instead of a dedicated Finance-role user, and without this the claim
+  // would route to a role nobody in that org holds and become invisible to
+  // everyone. Admin can always view/decide every expense claim regardless of
+  // this setting (see decideApproval) — this only controls who *else* can.
+  expenseApproverRole AccessRole?
+
+  users                 User[]
+  employees             Employee[]
+  departments           Department[]
+  clients               Client[]
+  vendors               Vendor[]
+  geofenceZones         GeofenceZone[]
+  subscription          Subscription?
+  payments              Payment[]
+  auditLogs             AuditLog[]
+  procurementQuotations ProcurementQuotation[]
 }
 
 // Append-only trail for the highest-stakes state changes (employee create/update,
@@ -185,29 +196,29 @@ model Department {
 }
 
 model Employee {
-  id             String         @id @default(cuid())
-  employeeCode   String         @unique
-  name           String
-  role           EmployeeRole
+  id                String         @id @default(cuid())
+  employeeCode      String         @unique
+  name              String
+  role              EmployeeRole
   // Nullable because an organization's very first admin is created before any
   // department exists (see registerOrganization).
-  departmentId   String?
-  department     Department?    @relation("EmployeeDepartment", fields: [departmentId], references: [id])
-  headedDepartments Department[] @relation("DepartmentHead")
-  email          String
-  phone          String
-  dateOfJoining  DateTime
-  status         EmployeeStatus @default(ACTIVE)
-  baseLocation   String
-  avatarSeed     String
-  organizationId String
-  organization   Organization   @relation(fields: [organizationId], references: [id])
-  reportingToId  String?
-  reportingTo    Employee?      @relation("ReportsTo", fields: [reportingToId], references: [id])
-  directReports  Employee[]     @relation("ReportsTo")
+  departmentId      String?
+  department        Department?    @relation("EmployeeDepartment", fields: [departmentId], references: [id])
+  headedDepartments Department[]   @relation("DepartmentHead")
+  email             String
+  phone             String
+  dateOfJoining     DateTime
+  status            EmployeeStatus @default(ACTIVE)
+  baseLocation      String
+  avatarSeed        String
+  organizationId    String
+  organization      Organization   @relation(fields: [organizationId], references: [id])
+  reportingToId     String?
+  reportingTo       Employee?      @relation("ReportsTo", fields: [reportingToId], references: [id])
+  directReports     Employee[]     @relation("ReportsTo")
   // deletedAt makes deletion reversible instead of a hard delete that can be
   // blocked outright by FK-linked HR/business records (see deleteEmployee).
-  deletedAt      DateTime?
+  deletedAt         DateTime?
 
   user User?
 
@@ -220,21 +231,22 @@ model Employee {
   locationPings  LocationPing[]
   visitLogs      VisitLog[]
 
-  approvalRequestsMade         ApprovalRequest[]     @relation("ApprovalRequestedBy")
-  approvalRequestsDecided      ApprovalRequest[]     @relation("ApprovalDecidedBy")
-  personalTasks                PersonalTask[]
-  tasksAssignedByMe            PersonalTask[]        @relation("TaskAssignedBy")
-  taskComments                 TaskComment[]
-  dailySummaries               DailySummary[]
-  assignedProjectTasks         ProjectTask[]
-  assignedTickets              SupportTicket[]
-  expenseClaims                ExpenseClaim[]
-  budgetsRequested             Budget[]
-  documents                    EmployeeDocument[]    @relation("EmployeeDocuments")
-  documentsUploaded            EmployeeDocument[]    @relation("DocumentUploadedBy")
-  siteVisitAttachmentsUploaded SiteVisitAttachment[]
-  salaryStructures             SalaryStructure[]
-  vendorPaymentsConfirmed      VendorPayment[]       @relation("VendorPaymentConfirmedBy")
+  approvalRequestsMade          ApprovalRequest[]      @relation("ApprovalRequestedBy")
+  approvalRequestsDecided       ApprovalRequest[]      @relation("ApprovalDecidedBy")
+  personalTasks                 PersonalTask[]
+  tasksAssignedByMe             PersonalTask[]         @relation("TaskAssignedBy")
+  taskComments                  TaskComment[]
+  dailySummaries                DailySummary[]
+  assignedProjectTasks          ProjectTask[]
+  assignedTickets               SupportTicket[]
+  expenseClaims                 ExpenseClaim[]
+  budgetsRequested              Budget[]
+  documents                     EmployeeDocument[]     @relation("EmployeeDocuments")
+  documentsUploaded             EmployeeDocument[]     @relation("DocumentUploadedBy")
+  siteVisitAttachmentsUploaded  SiteVisitAttachment[]
+  salaryStructures              SalaryStructure[]
+  vendorPaymentsConfirmed       VendorPayment[]        @relation("VendorPaymentConfirmedBy")
+  procurementQuotationsUploaded ProcurementQuotation[] @relation("ProcurementQuotationUploadedBy")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -272,12 +284,21 @@ enum LeaveType {
   CASUAL
   EARNED
   UNPAID
+  HALF_DAY
 }
 
 enum LeaveStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+// Only populated when type = HALF_DAY. CUSTOM lets the employee name their own
+// window (e.g. "10:00-14:00") instead of a fixed half of the day.
+enum HalfDayPeriod {
+  FIRST_HALF
+  SECOND_HALF
+  CUSTOM
 }
 
 model LeaveRequest {
@@ -293,6 +314,11 @@ model LeaveRequest {
   appliedOn  DateTime    @default(now())
   decidedOn  DateTime?
   decidedBy  String?
+
+  // Half-Day request detail — all nullable since they only apply when type = HALF_DAY.
+  halfDayPeriod    HalfDayPeriod?
+  halfDayStartTime String? // "HH:mm", only set when halfDayPeriod = CUSTOM
+  halfDayEndTime   String?
 
   @@index([employeeId, status])
 }
@@ -826,8 +852,58 @@ model VendorPayment {
   proofUrl        String?
   proofKey        String?
   confirmedById   String?
-  confirmedBy     Employee?      @relation("VendorPaymentConfirmedBy", fields: [confirmedById], references: [id])
+  confirmedBy     Employee? @relation("VendorPaymentConfirmedBy", fields: [confirmedById], references: [id])
   confirmedAt     DateTime?
+}
+
+enum ProcurementQuotationStatus {
+  RECEIVED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+// Vendor-submitted quotations logged by Procurement/Estimation for costing —
+// distinct from the CRM `Quotation` model (outbound quotes to clients).
+// Vendor/Project/Client are free text rather than FKs: Projects have no
+// creation UI at all in this app, and a vendor quote is often logged before
+// the vendor/client exists as master data, so this stays decoupled.
+// Versioning follows the same pattern as SalaryStructure: a new upload flips
+// the previous row's isLatest to false and inserts a new row sharing groupId,
+// rather than overwriting history.
+model ProcurementQuotation {
+  id              String                     @id @default(cuid())
+  organizationId  String
+  organization    Organization               @relation(fields: [organizationId], references: [id])
+  quotationNumber String
+  vendorName      String
+  projectName     String?
+  clientName      String?
+  quotationDate   DateTime
+  validUntil      DateTime?
+  remarks         String?
+  status          ProcurementQuotationStatus @default(RECEIVED)
+
+  fileUrl    String
+  storageKey String
+  fileName   String
+  fileSize   Int
+
+  version  Int     @default(1)
+  isLatest Boolean @default(true)
+  // Shared across every version of "the same" quotation (equals the id of the
+  // first version) — lets version history be queried as one group.
+  groupId  String
+
+  uploadedById String
+  uploadedBy   Employee @relation("ProcurementQuotationUploadedBy", fields: [uploadedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId, status])
+  @@index([groupId])
 }
 
 // ---------- GPS & Field Tracking ----------
@@ -1021,7 +1097,24 @@ model ExpenseClaim {
   createdAt    DateTime           @default(now())
   reimbursedOn DateTime?
 
+  attachments ExpenseClaimAttachment[]
+
   @@index([employeeId, status])
+}
+
+// Supporting documents (receipts etc.) for an expense claim — same shape as
+// SiteVisitAttachment/EmployeeDocument, stored via the shared storage.ts flow.
+model ExpenseClaimAttachment {
+  id             String       @id @default(cuid())
+  expenseClaimId String
+  expenseClaim   ExpenseClaim @relation(fields: [expenseClaimId], references: [id], onDelete: Cascade)
+  fileUrl        String
+  storageKey     String
+  fileName       String
+  fileSize       Int
+  createdAt      DateTime     @default(now())
+
+  @@index([expenseClaimId])
 }
 
 enum BudgetStatus {

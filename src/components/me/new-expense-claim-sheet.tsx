@@ -109,6 +109,17 @@ export function NewExpenseClaimSheet() {
             />
           </div>
 
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="receipt">Receipt / supporting document</Label>
+            <Input id="receipt" name="receipt" type="file" accept="image/*,.pdf" />
+            <p className="text-xs text-muted-foreground">Optional. Max 10MB.</p>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="notes">Notes for approver</Label>
+            <Textarea id="notes" name="notes" placeholder="Optional context for whoever reviews this…" rows={2} />
+          </div>
+
           {state?.error && <p className="text-sm text-destructive">{state.error}</p>}
 
           <SheetFooter className="px-0">

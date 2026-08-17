@@ -18,6 +18,8 @@ export async function getDashboardData(organizationId: string) {
     presentToday,
     checkedInNow,
     pendingLeave,
+    pendingHalfDay,
+    pendingExpenseClaims,
     unpaidVendorPayments,
     allAmcContracts,
     openPurchaseOrders,
@@ -41,6 +43,14 @@ export async function getDashboardData(organizationId: string) {
     prisma.attendance.count({ where: { date: today, status: "PRESENT", employee: { organizationId } } }),
     prisma.visitLog.count({ where: { status: "CHECKED_IN", employee: { organizationId } } }),
     prisma.leaveRequest.count({ where: { status: "PENDING", employee: { organizationId } } }),
+    prisma.leaveRequest.count({
+      where: { status: "PENDING", type: "HALF_DAY", employee: { organizationId } },
+    }),
+    prisma.expenseClaim.aggregate({
+      where: { status: "PENDING", employee: { organizationId } },
+      _count: true,
+      _sum: { amount: true },
+    }),
     // OVERDUE/EXPIRING_SOON are never recomputed at rest (see lib/payment-status.ts
     // and lib/amc-status.ts) — fetch the candidates and derive live status in JS
     // instead of filtering by the stale stored column.
@@ -111,6 +121,9 @@ export async function getDashboardData(organizationId: string) {
     presentToday,
     checkedInNow,
     pendingLeave,
+    pendingHalfDay,
+    pendingExpenseClaimsCount: pendingExpenseClaims._count,
+    pendingExpenseClaimsAmount: pendingExpenseClaims._sum.amount ?? 0,
     overduePaymentsAmount,
     overduePaymentsCount,
     expiringAmc,

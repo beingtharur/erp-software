@@ -74,6 +74,24 @@ export const PO_STATUS_TRANSITIONS: Record<PoStatus, readonly PoStatus[]> = {
   CANCELLED: [],
 };
 
+export type ProcurementQuotationStatus =
+  | "RECEIVED"
+  | "UNDER_REVIEW"
+  | "APPROVED"
+  | "REJECTED"
+  | "EXPIRED";
+
+export const PROCUREMENT_QUOTATION_STATUS_TRANSITIONS: Record<
+  ProcurementQuotationStatus,
+  readonly ProcurementQuotationStatus[]
+> = {
+  RECEIVED: ["UNDER_REVIEW", "EXPIRED"],
+  UNDER_REVIEW: ["APPROVED", "REJECTED", "EXPIRED"],
+  APPROVED: [],
+  REJECTED: ["RECEIVED"],
+  EXPIRED: ["RECEIVED"],
+};
+
 /** True if `from -> to` is an allowed transition (same-state is never "valid" — callers should just no-op). */
 export function isValidTransition<S extends string>(
   map: Record<S, readonly S[]>,

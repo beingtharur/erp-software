@@ -75,6 +75,8 @@ export async function checkOutAttendance() {
   revalidatePath("/");
 }
 
+const HALF_DAY_PERIODS = new Set(["FIRST_HALF", "SECOND_HALF", "CUSTOM"]);
+
 export async function applyLeave(
   _prevState: FormActionState,
   formData: FormData
@@ -86,19 +88,50 @@ export async function applyLeave(
 
   const type = String(formData.get("type") ?? "");
   const startDate = String(formData.get("startDate") ?? "");
-  const endDate = String(formData.get("endDate") ?? "");
   const reason = String(formData.get("reason") ?? "").trim();
 
-  if (!type || !startDate || !endDate || !reason) {
+  if (!type || !startDate || !reason) {
     return { error: "Please fill in all fields." };
   }
 
   const start = new Date(startDate);
-  const end = new Date(endDate);
-  if (end < start) {
-    return { error: "End date must be after start date." };
+  const isHalfDay = type === "HALF_DAY";
+
+  let end = start;
+  let days: number;
+  let halfDayPeriod: string | null = null;
+  let halfDayStartTime: string | null = null;
+  let halfDayEndTime: string | null = null;
+
+  if (isHalfDay) {
+    // A half-day request is always a single day — end date and day count are
+    // derived server-side, never trusted from the client.
+    halfDayPeriod = String(formData.get("halfDayPeriod") ?? "");
+    if (!HALF_DAY_PERIODS.has(halfDayPeriod)) {
+      return { error: "Select a half-day period." };
+    }
+    if (halfDayPeriod === "CUSTOM") {
+      halfDayStartTime = String(formData.get("halfDayStartTime") ?? "");
+      halfDayEndTime = String(formData.get("halfDayEndTime") ?? "");
+      if (!halfDayStartTime || !halfDayEndTime) {
+        return { error: "Enter a start and end time for your custom half-day." };
+      }
+      if (halfDayStartTime >= halfDayEndTime) {
+        return { error: "End time must be after start time." };
+      }
+    }
+    days = 0.5;
+  } else {
+    const endDate = String(formData.get("endDate") ?? "");
+    if (!endDate) {
+      return { error: "Please fill in all fields." };
+    }
+    end = new Date(endDate);
+    if (end < start) {
+      return { error: "End date must be after start date." };
+    }
+    days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
   }
-  const days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
 
   await prisma.leaveRequest.create({
     data: {
@@ -109,20 +142,25 @@ export async function applyLeave(
       days,
       reason,
       status: "PENDING",
+      halfDayPeriod: halfDayPeriod as never,
+      halfDayStartTime,
+      halfDayEndTime,
     },
   });
 
   // Previously HR/Admin only discovered a pending leave request by visiting
   // /hrms/leave — every other approval-style flow (expense claims, budgets,
   // POs) notifies the deciding role at submission time. Match that here.
+  // Half-day requests additionally notify ADMIN (not just HR), matching the
+  // client's explicit "Managers/Admins/HR should be able to Approve/Reject."
   const employee = await prisma.employee.findUnique({ where: { id: user.employeeId } });
   if (employee) {
-    await notifyRole(
-      "HR",
-      employee.organizationId,
-      `${employee.name} applied for ${titleCase(type)} leave (${days} day${days === 1 ? "" : "s"}).`,
-      "/hrms/leave"
-    );
+    const label = isHalfDay ? `Half-Day (${titleCase(halfDayPeriod!)})` : `${titleCase(type)} leave`;
+    const message = `${employee.name} applied for ${label} (${days} day${days === 1 ? "" : "s"}).`;
+    await notifyRole("HR", employee.organizationId, message, "/hrms/leave");
+    if (isHalfDay) {
+      await notifyRole("ADMIN", employee.organizationId, message, "/hrms/leave");
+    }
   }
 
   revalidatePath("/me");

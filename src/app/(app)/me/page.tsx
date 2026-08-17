@@ -17,6 +17,7 @@ import {
   getProjectOptions,
   getMySiteVisits,
 } from "@/lib/queries/me";
+import { getLeaveBalanceSummary } from "@/lib/queries/hrms";
 import {
   getMyTasks,
   getTasksAssignedByMe,
@@ -101,6 +102,7 @@ export default async function MyHrPage() {
   // has no write path in a brand-new org until someone uses updateEmployee to
   // set up the org chart.
   const isManager = user.accessRole === "ADMIN" || isManagerByReports;
+  const leaveBalance = employeeId ? await getLeaveBalanceSummary(employeeId, new Date().getFullYear()) : [];
 
   const [assignedTasks, teamSummaries] = employeeId && isManager
     ? await Promise.all([getTasksAssignedByMe(employeeId), getTeamDailySummaries(employeeId)])
@@ -186,13 +188,27 @@ export default async function MyHrPage() {
               <ApplyLeaveSheet />
             </CardHeader>
             <CardContent className="space-y-2">
+              {leaveBalance.length > 0 && (
+                <div className="mb-1 flex flex-wrap gap-x-3 gap-y-1 border-b pb-2 text-xs text-muted-foreground">
+                  {leaveBalance.map((b) => (
+                    <span key={b.type}>
+                      {titleCase(b.type)}: <span className="font-medium text-foreground">{b.days}d</span>
+                    </span>
+                  ))}
+                </div>
+              )}
               {leaveRequests.length === 0 && (
                 <p className="text-sm text-muted-foreground">No leave requests yet.</p>
               )}
               {leaveRequests.map((l) => (
                 <div key={l.id} className="flex items-center justify-between text-sm border-b pb-2 last:border-0 last:pb-0">
                   <div>
-                    <p>{titleCase(l.type)}</p>
+                    <p>
+                      {titleCase(l.type)}
+                      {l.type === "HALF_DAY" && l.halfDayPeriod && (
+                        <span className="text-xs text-muted-foreground"> · {titleCase(l.halfDayPeriod)}</span>
+                      )}
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {formatDate(l.startDate)} – {formatDate(l.endDate)} ({l.days}d)
                     </p>

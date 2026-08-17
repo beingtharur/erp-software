@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ApprovalDecisionButtons } from "@/components/approvals/approval-decision-buttons";
 import { formatDate, formatDateTime, formatINR, titleCase } from "@/lib/format";
-import { ClipboardCheck } from "lucide-react";
+import { ClipboardCheck, Paperclip } from "lucide-react";
 
 export default async function ApprovalsPage() {
   const user = await getCurrentUser();
@@ -48,9 +48,32 @@ export default async function ApprovalsPage() {
                       <Badge variant="outline" className="font-normal">
                         {formatINR(approval.expenseClaim.amount)}
                       </Badge>
+                      {!approval.canDecide && (
+                        <Badge variant="secondary" className="font-normal">
+                          View only
+                        </Badge>
+                      )}
                     </div>
                     <p className="mt-0.5 text-sm text-muted-foreground">
                       {titleCase(approval.expenseClaim.category)} · {approval.expenseClaim.description}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {approval.expenseClaim.employee.name}
+                      {approval.expenseClaim.employee.department && (
+                        <> · {approval.expenseClaim.employee.department.name}</>
+                      )}
+                      {" · "}
+                      {formatDate(approval.expenseClaim.expenseDate)}
+                      {approval.expenseClaim.attachments.length > 0 && (
+                        <a
+                          href={approval.expenseClaim.attachments[0].fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-2 inline-flex items-center gap-1 text-primary hover:underline"
+                        >
+                          <Paperclip className="size-3" /> Receipt
+                        </a>
+                      )}
                     </p>
                   </>
                 ) : approval.budget ? (
@@ -75,8 +98,17 @@ export default async function ApprovalsPage() {
                     <> · Expected delivery {formatDate(approval.purchaseOrder.expectedDelivery)}</>
                   )}
                 </p>
+                {approval.note && (
+                  <p className="mt-1 text-xs text-muted-foreground">Note: {approval.note}</p>
+                )}
               </div>
-              <ApprovalDecisionButtons approvalId={approval.id} />
+              {approval.canDecide ? (
+                <ApprovalDecisionButtons approvalId={approval.id} />
+              ) : (
+                <p className="shrink-0 text-xs text-muted-foreground">
+                  Awaiting {titleCase(approval.approverRole)}
+                </p>
+              )}
             </CardContent>
           </Card>
         ))}

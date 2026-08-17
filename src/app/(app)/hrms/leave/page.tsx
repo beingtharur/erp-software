@@ -47,7 +47,12 @@ export default async function LeavePage() {
           {requests.map((leave) => (
             <TableRow key={leave.id}>
               <TableCell className="font-medium">{leave.employee.name}</TableCell>
-              <TableCell className="text-muted-foreground">{titleCase(leave.type)}</TableCell>
+              <TableCell className="text-muted-foreground">
+                {titleCase(leave.type)}
+                {leave.type === "HALF_DAY" && leave.halfDayPeriod && (
+                  <span className="text-xs"> · {titleCase(leave.halfDayPeriod)}</span>
+                )}
+              </TableCell>
               <TableCell className="text-muted-foreground">
                 {formatDate(leave.startDate)} – {formatDate(leave.endDate)}
               </TableCell>

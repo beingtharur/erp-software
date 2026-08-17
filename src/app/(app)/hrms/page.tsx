@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { LeaveDecisionButtons } from "@/components/hrms/leave-decision-buttons";
-import { formatDate, initials, titleCase } from "@/lib/format";
+import { DecideClaimButtons } from "@/components/finance/decide-claim-buttons";
+import { formatDate, formatINR, initials, titleCase } from "@/lib/format";
 import {
   Users,
   UserCheck,
@@ -21,7 +22,7 @@ import {
 
 export default async function HrmsOverviewPage() {
   const user = await getCurrentUser();
-  const data = await getHrmsOverview(user.organizationId!);
+  const data = await getHrmsOverview(user.organizationId!, user.accessRole);
 
   const attendanceMap = Object.fromEntries(
     data.attendanceToday.map((a) => [a.status, a._count])
@@ -32,7 +33,7 @@ export default async function HrmsOverviewPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         <KpiCard label="Active Employees" value={String(data.totalActive)} icon={Users} />
         <KpiCard
           label="Present Today"
@@ -46,6 +47,13 @@ export default async function HrmsOverviewPage() {
           label="On Leave Today"
           value={String(data.onLeaveToday)}
           icon={Plane}
+        />
+        <KpiCard
+          label="Pending Half-Day"
+          value={String(data.pendingHalfDay)}
+          sub="awaiting approval"
+          icon={Clock}
+          tone={data.pendingHalfDay > 0 ? "warning" : "default"}
         />
         <KpiCard
           label="Pending Payroll"
@@ -175,6 +183,53 @@ export default async function HrmsOverviewPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Pending expense claims</CardTitle>
+          <CardDescription>
+            Travel & other reimbursement requests — visible here regardless of who&apos;s configured to
+            decide them
+            {data.pendingExpenseClaims.total > 0 && ` · ${data.pendingExpenseClaims.total} total`}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {data.pendingExpenseClaims.claims.length === 0 && (
+            <p className="text-sm text-muted-foreground">No pending claims.</p>
+          )}
+          {data.pendingExpenseClaims.claims.map((claim) => (
+            <div
+              key={claim.id}
+              className="flex items-center justify-between gap-3 border-b pb-3 text-sm last:border-0 last:pb-0"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <Avatar className="size-8">
+                  <AvatarFallback className="text-xs">{initials(claim.employee.name)}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{claim.employee.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {titleCase(claim.category)} · {claim.employee.department?.name ?? "—"} ·{" "}
+                    {formatINR(claim.amount)} · {formatDate(claim.expenseDate)}
+                  </p>
+                </div>
+              </div>
+              {claim.canDecide && claim.approvalId ? (
+                <DecideClaimButtons approvalId={claim.approvalId} />
+              ) : (
+                <Badge variant="secondary" className="shrink-0 font-normal">
+                  View only
+                </Badge>
+              )}
+            </div>
+          ))}
+          {data.pendingExpenseClaims.total > data.pendingExpenseClaims.claims.length && (
+            <Link href="/approvals" className="block pt-1 text-sm font-medium text-primary hover:underline">
+              View all {data.pendingExpenseClaims.total} pending claims →
+            </Link>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

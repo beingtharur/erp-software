@@ -6,6 +6,7 @@ import {
   TICKET_STATUS_TRANSITIONS,
   PROJECT_TASK_STATUS_TRANSITIONS,
   PO_STATUS_TRANSITIONS,
+  PROCUREMENT_QUOTATION_STATUS_TRANSITIONS,
   isValidTransition,
   nextStatuses,
 } from "@/lib/status-transitions";
@@ -65,5 +66,23 @@ describe("isValidTransition", () => {
       ["DONE", "TODO"].sort()
     );
     expect(nextStatuses(PROJECT_TASK_STATUS_TRANSITIONS, "DONE")).toEqual(["TODO"]);
+  });
+
+  it("rejects the RECEIVED -> APPROVED procurement quotation skip, requires review first", () => {
+    expect(isValidTransition(PROCUREMENT_QUOTATION_STATUS_TRANSITIONS, "RECEIVED", "APPROVED")).toBe(
+      false
+    );
+    expect(isValidTransition(PROCUREMENT_QUOTATION_STATUS_TRANSITIONS, "RECEIVED", "UNDER_REVIEW")).toBe(
+      true
+    );
+    expect(isValidTransition(PROCUREMENT_QUOTATION_STATUS_TRANSITIONS, "UNDER_REVIEW", "APPROVED")).toBe(
+      true
+    );
+  });
+
+  it("treats an APPROVED procurement quotation as terminal, but REJECTED/EXPIRED can be resubmitted", () => {
+    expect(nextStatuses(PROCUREMENT_QUOTATION_STATUS_TRANSITIONS, "APPROVED")).toEqual([]);
+    expect(nextStatuses(PROCUREMENT_QUOTATION_STATUS_TRANSITIONS, "REJECTED")).toEqual(["RECEIVED"]);
+    expect(nextStatuses(PROCUREMENT_QUOTATION_STATUS_TRANSITIONS, "EXPIRED")).toEqual(["RECEIVED"]);
   });
 });
