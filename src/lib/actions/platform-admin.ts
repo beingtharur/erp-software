@@ -22,6 +22,21 @@ export async function approvePayment(paymentId: string) {
       throw new Error("Payment not found or already reviewed.");
     }
 
+    // Validated before anything else changes, not just trusted from
+    // submitPayment's own "modules non-empty" check — this function activates
+    // whatever is actually stored on the Payment row, and that guarantee only
+    // holds for rows created through today's version of submitPayment. An
+    // older row, a manually-inserted one, or a future submission path could
+    // all carry an empty modules array; activating a subscription with zero
+    // modules produces a genuinely broken state (ACTIVE, but every
+    // requireModuleAccess check fails — the org can log in and see nothing).
+    const modules: string[] = JSON.parse(payment.modules);
+    if (modules.length === 0) {
+      throw new Error(
+        "This payment has no modules on record — cannot activate a subscription with zero modules."
+      );
+    }
+
     const now = new Date();
     await tx.payment.update({
       where: { id: payment.id },
@@ -51,7 +66,6 @@ export async function approvePayment(paymentId: string) {
       },
     });
 
-    const modules: string[] = JSON.parse(payment.modules);
     await tx.subscriptionModule.deleteMany({ where: { subscriptionId: subscription.id } });
     await tx.subscriptionModule.createMany({
       data: modules.map((module) => ({ subscriptionId: subscription.id, module })),
