@@ -40,6 +40,7 @@ import { requireRole, requireModuleAccess, getCurrentUser, getCurrentOrganizatio
 import { get<Report> } from "@/lib/queries/<module>";
 import { buildReportWorkbook, buildExportFilename } from "@/lib/export/workbook";
 import { <report>ExportColumns } from "@/lib/export/<report>";
+import { logExport } from "@/lib/export/audit";
 
 export async function GET(request: NextRequest) {
   // Use the EXACT SAME requireRole/requireModuleAccess calls as the page
@@ -57,6 +58,16 @@ export async function GET(request: NextRequest) {
   // the actual UI control later never means touching the route.
   const someFilter = request.nextUrl.searchParams.get("someFilter");
   if (someFilter) rows = rows.filter((r) => /* ... */);
+
+  // After the permission gate, before the response — only genuinely-authorized,
+  // actually-served downloads get recorded. Never skip this: it's how "who
+  // downloaded the employee/payroll database?" gets answered later.
+  await logExport({
+    report: "<report>",
+    organizationId: user.organizationId!,
+    userId: user.id,
+    filters: someFilter ? { someFilter } : undefined,
+  });
 
   const buffer = await buildReportWorkbook({
     reportTitle: "<Report> Report",
