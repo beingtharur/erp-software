@@ -22,6 +22,14 @@ export default async function SubscriptionStatusPage({
   const home = roleHome[user.accessRole] ?? "/";
   const blockedModuleTitle = navSections.find((s) => s.key === m)?.title;
 
+  // TEMPORARY DEBUG — remove after confirming behavior on the live server.
+  console.log("SUBSCRIPTION_DEBUG", {
+    blocked,
+    m,
+    unlockedModules: access.unlockedModules,
+    includesModule: access.unlockedModules.includes(m ?? ""),
+  });
+
   // Self-heal stale/bookmarked "blocked" links: requireModuleAccess() only
   // ever generates this query string when the module is genuinely excluded
   // at redirect time, but access can change afterward (a subscription fix, a
