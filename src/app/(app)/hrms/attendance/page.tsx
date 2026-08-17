@@ -9,7 +9,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatTime, titleCase } from "@/lib/format";
+import { Download } from "lucide-react";
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   PRESENT: "default",
@@ -29,11 +31,17 @@ export default async function AttendancePage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-muted-foreground">
-        Showing attendance for {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}
-        {" · "}
-        {presentCount} present · {absentCount} absent · {onLeaveCount} on leave
-      </p>
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-sm text-muted-foreground">
+          Showing attendance for {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}
+          {" · "}
+          {presentCount} present · {absentCount} absent · {onLeaveCount} on leave
+        </p>
+        <Button variant="outline" nativeButton={false} render={<a href="/api/exports/attendance" />}>
+          <Download />
+          Export to Excel
+        </Button>
+      </div>
       <div className="rounded-lg border">
         <Table>
           <TableHeader>

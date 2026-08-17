@@ -3,7 +3,7 @@ import { getTaskStats } from "@/lib/queries/tasks";
 import { getDepartmentHeadcount } from "@/lib/queries/departments";
 import { getPendingExpenseClaimsForHr } from "@/lib/queries/finance";
 import { attendanceDayValue } from "@/lib/payroll";
-import type { AccessRole } from "@/generated/prisma/client";
+import type { AccessRole, AttendanceStatus } from "@/generated/prisma/client";
 
 function startOfToday() {
   const d = new Date();
@@ -200,6 +200,38 @@ export async function getAttendanceToday(organizationId: string) {
       leaveType: null,
       dayValue: 0,
     };
+  });
+}
+
+export type AttendanceExportFilters = {
+  fromDate: Date;
+  toDate: Date;
+  departmentId?: string;
+  employeeId?: string;
+  status?: string;
+};
+
+// Attendance across a date range for the whole org — unlike getAttendanceToday
+// (today-only, which synthesizes ABSENT/ON_LEAVE placeholder rows so every
+// active employee appears), this reads only real, persisted Attendance rows.
+// A multi-day report has no single "today's roster" to backfill against, so
+// a day with no row for an employee simply doesn't appear — that's correct
+// for a historical report, not a bug.
+export async function getAttendanceForExport(organizationId: string, filters: AttendanceExportFilters) {
+  return prisma.attendance.findMany({
+    where: {
+      date: { gte: filters.fromDate, lte: filters.toDate },
+      status: filters.status ? (filters.status as AttendanceStatus) : undefined,
+      employee: {
+        organizationId,
+        id: filters.employeeId || undefined,
+        departmentId: filters.departmentId || undefined,
+      },
+    },
+    orderBy: [{ date: "asc" }, { employee: { name: "asc" } }],
+    include: {
+      employee: { select: { employeeCode: true, name: true, department: { select: { name: true } } } },
+    },
   });
 }
 
