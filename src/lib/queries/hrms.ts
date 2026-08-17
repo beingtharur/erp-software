@@ -3,7 +3,7 @@ import { getTaskStats } from "@/lib/queries/tasks";
 import { getDepartmentHeadcount } from "@/lib/queries/departments";
 import { getPendingExpenseClaimsForHr } from "@/lib/queries/finance";
 import { attendanceDayValue } from "@/lib/payroll";
-import type { AccessRole, AttendanceStatus } from "@/generated/prisma/client";
+import type { AccessRole, AttendanceStatus, LeaveType, LeaveStatus } from "@/generated/prisma/client";
 
 function startOfToday() {
   const d = new Date();
@@ -262,6 +262,37 @@ export async function getLeaveRequests(organizationId: string) {
     where: { employee: { organizationId } },
     orderBy: { appliedOn: "desc" },
     include: { employee: true },
+  });
+}
+
+export type LeaveExportFilters = {
+  fromDate: Date;
+  toDate: Date;
+  departmentId?: string;
+  employeeId?: string;
+  type?: string;
+  status?: string;
+};
+
+// Filtered by startDate falling in the range — a "leave register for period
+// X" reads as requests starting in that period, not every request whose
+// span happens to overlap it.
+export async function getLeaveRequestsForExport(organizationId: string, filters: LeaveExportFilters) {
+  return prisma.leaveRequest.findMany({
+    where: {
+      startDate: { gte: filters.fromDate, lte: filters.toDate },
+      type: filters.type ? (filters.type as LeaveType) : undefined,
+      status: filters.status ? (filters.status as LeaveStatus) : undefined,
+      employee: {
+        organizationId,
+        id: filters.employeeId || undefined,
+        departmentId: filters.departmentId || undefined,
+      },
+    },
+    orderBy: [{ startDate: "asc" }, { employee: { name: "asc" } }],
+    include: {
+      employee: { select: { employeeCode: true, name: true, department: { select: { name: true } } } },
+    },
   });
 }
 

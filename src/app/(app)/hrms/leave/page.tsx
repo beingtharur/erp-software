@@ -9,8 +9,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatDate, titleCase } from "@/lib/format";
 import { LeaveDecisionButtons } from "@/components/hrms/leave-decision-buttons";
+import { Download } from "lucide-react";
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive"> = {
   APPROVED: "default",
@@ -23,7 +25,14 @@ export default async function LeavePage() {
   const requests = await getLeaveRequests(user.organizationId!);
 
   return (
-    <div className="rounded-lg border">
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <Button variant="outline" nativeButton={false} render={<a href="/api/exports/leaves" />}>
+          <Download />
+          Export to Excel
+        </Button>
+      </div>
+      <div className="rounded-lg border">
       <Table>
         <TableHeader>
           <TableRow>
@@ -74,6 +83,7 @@ export default async function LeavePage() {
           ))}
         </TableBody>
       </Table>
+      </div>
     </div>
   );
 }
