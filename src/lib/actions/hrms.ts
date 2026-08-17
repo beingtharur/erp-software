@@ -559,6 +559,44 @@ export async function createSelfEmployeeProfile(
   return { success: true };
 }
 
+// Self-service completion of specific blank fields on the caller's own
+// already-existing Employee record — distinct from createSelfEmployeeProfile
+// (which creates a whole new record for a user with none) and from
+// updateEmployee (an ADMIN/HR admin tool that edits *any* employee's full
+// record, including status/reportingTo). Deliberately no role gate, same as
+// createSelfEmployeeProfile: this only ever touches the caller's own row, and
+// only the two fields the IncompleteProfileBanner actually shows — the only
+// path that leaves them blank today is registerOrganization (always role
+// ADMIN), but gating this on ADMIN/HR would incorrectly break self-completion
+// for any other role that could end up with a blank profile in the future.
+// Never blanks out a field that already has a value — only submitted,
+// non-empty fields are written.
+export async function completeEmployeeProfileFields(
+  _prevState: FormActionState,
+  formData: FormData
+): Promise<FormActionState> {
+  const user = await getCurrentUser();
+  if (!user.employeeId) {
+    return { error: "No employee record linked to this account." };
+  }
+
+  const phone = String(formData.get("phone") ?? "").trim();
+  const baseLocation = String(formData.get("baseLocation") ?? "").trim();
+
+  const data: { phone?: string; baseLocation?: string } = {};
+  if (phone) data.phone = phone;
+  if (baseLocation) data.baseLocation = baseLocation;
+
+  if (Object.keys(data).length === 0) {
+    return { error: "Enter at least one field." };
+  }
+
+  await prisma.employee.update({ where: { id: user.employeeId }, data });
+
+  revalidatePath("/", "layout");
+  return { success: true };
+}
+
 // Soft-delete: sets deletedAt and removes the linked login instead of a hard
 // DB delete. Two reasons, not one: (1) the prior hard delete already refused
 // to run at all once any FK-linked HR/business record existed (P2003 below),

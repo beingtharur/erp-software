@@ -3,6 +3,7 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { TrialBanner } from "@/components/layout/trial-banner";
 import { CompleteProfileBanner } from "@/components/layout/complete-profile-banner";
+import { IncompleteProfileBanner } from "@/components/layout/incomplete-profile-banner";
 import { getCurrentUser, requireActiveAccess } from "@/lib/dal";
 import { getDepartmentOptions } from "@/lib/queries/departments";
 
@@ -22,6 +23,9 @@ export default async function AppShellLayout({
   // employee record yet — so this stays off the hot path for everyone else.
   const departments = user.employeeId ? [] : await getDepartmentOptions(user.organizationId!);
 
+  const missingPhone = Boolean(user.employee && !user.employee.phone);
+  const missingBaseLocation = Boolean(user.employee && !user.employee.baseLocation);
+
   return (
     <SidebarProvider>
       <AppSidebar
@@ -31,6 +35,9 @@ export default async function AppShellLayout({
       <SidebarInset>
         <TrialBanner access={access} />
         {!user.employeeId && <CompleteProfileBanner departments={departments} />}
+        {(missingPhone || missingBaseLocation) && (
+          <IncompleteProfileBanner missingPhone={missingPhone} missingBaseLocation={missingBaseLocation} />
+        )}
         {children}
       </SidebarInset>
     </SidebarProvider>
