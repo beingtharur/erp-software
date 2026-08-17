@@ -203,9 +203,23 @@ export async function updateUser(
     return { error: "User not found." };
   }
 
+  // Employee.email is checked here too (not just User.email above) — every
+  // *creation* path keeps the two in sync by construction, but without this
+  // check an admin could set a User's email to one that's already in use as
+  // a *different* employee's Employee.email, which the transaction below
+  // would then silently overwrite on that other employee's record (Employee.email
+  // is unique per [organizationId, email]).
   const emailOwner = await prisma.user.findUnique({ where: { email } });
   if (emailOwner && emailOwner.id !== userId) {
     return { error: "Another user already has this email." };
+  }
+  if (target.employeeId) {
+    const employeeEmailOwner = await prisma.employee.findFirst({
+      where: { organizationId, email, NOT: { id: target.employeeId } },
+    });
+    if (employeeEmailOwner) {
+      return { error: "Another employee already has this email." };
+    }
   }
 
   let passwordFields: { passwordHash: string; passwordSalt: string } | undefined;
@@ -214,10 +228,22 @@ export async function updateUser(
     passwordFields = { passwordHash: hash, passwordSalt: salt };
   }
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: { email, accessRole: accessRole as AccessRole, ...passwordFields },
-  });
+  // User.email and Employee.email must change together — every creation path
+  // (registerOrganization, createEmployee, createSelfEmployeeProfile,
+  // createUserForEmployee) keeps them in sync from the start, and this was
+  // the one edit path that didn't, letting them silently drift (see the
+  // audit in the Location-module investigation). The Employee detail page
+  // (`/hrms/employees/[id]`) reads Employee.email directly, so a stale value
+  // there would have been genuinely visible to Admin/HR, not just internal.
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data: { email, accessRole: accessRole as AccessRole, ...passwordFields },
+    }),
+    ...(target.employeeId
+      ? [prisma.employee.update({ where: { id: target.employeeId }, data: { email } })]
+      : []),
+  ]);
 
   // This form is the one place an admin explicitly controls module access —
   // unlike the quick role-switch dropdown (updateUserRole), which stays

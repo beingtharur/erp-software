@@ -16,6 +16,7 @@ import {
   getTeamDailySummaries,
   getProjectOptions,
   getMySiteVisits,
+  getMyManager,
 } from "@/lib/queries/me";
 import { getLeaveBalanceSummary } from "@/lib/queries/hrms";
 import {
@@ -38,6 +39,7 @@ import { AttendanceCheckButton } from "@/components/me/attendance-check-button";
 import { DailySummaryForm } from "@/components/me/daily-summary-form";
 import { SiteVisitActions } from "@/components/crm/site-visit-actions";
 import { VisitReportDialog } from "@/components/crm/visit-report-dialog";
+import { Mail, Phone, MapPin, IdCard, CalendarDays, UserCheck2 } from "lucide-react";
 
 const leaveStatusVariant: Record<string, "default" | "secondary" | "destructive"> = {
   APPROVED: "default",
@@ -58,6 +60,12 @@ const attendanceVariant: Record<string, "default" | "secondary" | "destructive" 
   ABSENT: "destructive",
   ON_LEAVE: "secondary",
   HOLIDAY: "outline",
+};
+
+const employeeStatusVariant: Record<string, "default" | "secondary" | "destructive"> = {
+  ACTIVE: "default",
+  ON_LEAVE: "secondary",
+  INACTIVE: "destructive",
 };
 
 export default async function MyHrPage() {
@@ -103,6 +111,7 @@ export default async function MyHrPage() {
   // set up the org chart.
   const isManager = user.accessRole === "ADMIN" || isManagerByReports;
   const leaveBalance = employeeId ? await getLeaveBalanceSummary(employeeId, new Date().getFullYear()) : [];
+  const manager = user.employee ? await getMyManager(user.employee.reportingToId) : null;
 
   const [assignedTasks, teamSummaries] = employeeId && isManager
     ? await Promise.all([getTasksAssignedByMe(employeeId), getTeamDailySummaries(employeeId)])
@@ -132,18 +141,61 @@ export default async function MyHrPage() {
       <SiteHeader title="My HR" description="Personal attendance, leave & timesheet" />
       <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
         <Card>
-          <CardContent className="flex items-center gap-3">
-            <Avatar className="size-11">
-              <AvatarFallback>{initials(user.employee?.name ?? user.email)}</AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="font-medium">{user.employee?.name ?? user.email}</p>
-              <p className="text-sm text-muted-foreground">
-                {user.employee
-                  ? `${employeeRoleName(user.employee.role)} · ${user.employee.department?.name ?? "No department"}`
-                  : "—"}
-              </p>
+          <CardContent className="flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <Avatar className="size-11">
+                <AvatarFallback>{initials(user.employee?.name ?? user.email)}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium">{user.employee?.name ?? user.email}</p>
+                  {user.employee && (
+                    <Badge variant="outline" className="font-normal">
+                      {user.employee.employeeCode}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {user.employee
+                    ? `${employeeRoleName(user.employee.role)} · ${user.employee.department?.name ?? "No department"}`
+                    : "—"}
+                </p>
+              </div>
+              {user.employee && (
+                <Badge variant={employeeStatusVariant[user.employee.status]} className="shrink-0 font-normal">
+                  {titleCase(user.employee.status)}
+                </Badge>
+              )}
             </div>
+
+            {user.employee && (
+              <div className="grid grid-cols-1 gap-x-6 gap-y-2 border-t pt-4 text-sm sm:grid-cols-2">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Mail className="size-3.5 shrink-0" />
+                  <span className="truncate">{user.email}</span>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Phone className="size-3.5 shrink-0" />
+                  <span>{user.employee.phone || "—"}</span>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <MapPin className="size-3.5 shrink-0" />
+                  <span>{user.employee.baseLocation || "—"}</span>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <CalendarDays className="size-3.5 shrink-0" />
+                  <span>Joined {formatDate(user.employee.dateOfJoining)}</span>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <IdCard className="size-3.5 shrink-0" />
+                  <span>{user.employee.employeeCode}</span>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <UserCheck2 className="size-3.5 shrink-0" />
+                  <span>Reports to {manager?.name ?? "—"}</span>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

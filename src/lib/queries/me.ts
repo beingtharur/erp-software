@@ -1,5 +1,18 @@
 import { prisma } from "@/lib/db";
 
+// Deliberately not part of dal.ts::getCurrentUser's include — that query is
+// react-cache'd but still runs its include on every single page in the app,
+// not just /me. Reporting-manager name is only ever displayed on the profile
+// card, so it gets its own narrow, /me-only query instead of a heavier
+// global one.
+export async function getMyManager(reportingToId: string | null) {
+  if (!reportingToId) return null;
+  return prisma.employee.findUnique({
+    where: { id: reportingToId },
+    select: { id: true, name: true },
+  });
+}
+
 export async function getMyAttendance(employeeId: string) {
   return prisma.attendance.findMany({
     where: { employeeId },
