@@ -7,6 +7,8 @@ import {
 import { getCurrentUser } from "@/lib/dal";
 import { PipelineBoard } from "@/components/crm/pipeline-board";
 import { NewLeadSheet } from "@/components/crm/new-lead-sheet";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
 
 export default async function PipelinePage() {
   const user = await getCurrentUser();
@@ -20,7 +22,11 @@ export default async function PipelinePage() {
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" nativeButton={false} render={<a href="/api/exports/leads" />}>
+          <Download />
+          Export to Excel
+        </Button>
         <NewLeadSheet
           clients={clients}
           // Owner was previously restricted to SALES_REP-only employees,

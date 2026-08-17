@@ -1,11 +1,46 @@
 import { prisma } from "@/lib/db";
 import { computeAmcStatus } from "@/lib/amc-status";
+import type { LeadStage, LeadSource, ProductLine } from "@/generated/prisma/client";
 
 export async function getPipelineLeads(organizationId: string) {
   return prisma.lead.findMany({
     where: { client: { organizationId } },
     orderBy: { updatedAt: "desc" },
     include: { client: true, owner: true, quotations: true },
+  });
+}
+
+export type LeadExportFilters = {
+  stage?: string;
+  source?: string;
+  productLine?: string;
+  ownerId?: string;
+  expectedCloseFrom?: Date;
+  expectedCloseTo?: Date;
+};
+
+// No default date range — a pipeline register reads as "every lead," open
+// or closed, same convention as Vendor/Purchase Order Export.
+export async function getLeadsForExport(organizationId: string, filters: LeadExportFilters) {
+  const expectedCloseFilter =
+    filters.expectedCloseFrom || filters.expectedCloseTo
+      ? {
+          ...(filters.expectedCloseFrom ? { gte: filters.expectedCloseFrom } : {}),
+          ...(filters.expectedCloseTo ? { lte: filters.expectedCloseTo } : {}),
+        }
+      : undefined;
+
+  return prisma.lead.findMany({
+    where: {
+      client: { organizationId },
+      stage: filters.stage ? (filters.stage as LeadStage) : undefined,
+      source: filters.source ? (filters.source as LeadSource) : undefined,
+      productLine: filters.productLine ? (filters.productLine as ProductLine) : undefined,
+      ownerId: filters.ownerId || undefined,
+      expectedCloseDate: expectedCloseFilter,
+    },
+    orderBy: { createdAt: "desc" },
+    include: { client: true, owner: true },
   });
 }
 
