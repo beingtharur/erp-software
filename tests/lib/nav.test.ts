@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { navSections, roleSectionAccess, roleHome, roleLabel, visibleSectionsFor } from "@/lib/nav";
+import { navSections, roleSectionAccess, roleHome, roleLabel, visibleSectionsFor, procurementCrmHrefs } from "@/lib/nav";
 import { AccessRole } from "@/generated/prisma/enums";
 
 const allRoles = Object.values(AccessRole);
@@ -73,9 +73,36 @@ describe("visibleSectionsFor — role eligibility ∩ per-user grants", () => {
     expect(field?.items.map((i) => i.href)).toEqual(["/field", "/field/visits", "/field/geofences"]);
   });
 
-  it("keeps procurement's CRM entry filtered to Quotations only", () => {
+  it("scopes procurement's CRM entry to Pipeline, Clients and Quotations", () => {
+    // The Proposal Manager quotes against the lead pipeline and client list.
     const crm = visibleSectionsFor("PROCUREMENT", ["crm", "vendors"]).find((s) => s.key === "crm");
-    expect(crm?.items.map((i) => i.href)).toEqual(["/crm/quotations"]);
+    expect(crm?.items.map((i) => i.href)).toEqual(["/crm", "/crm/clients", "/crm/quotations"]);
+  });
+
+  it("never exposes Projects, Site Visits, AMC or Helpdesk to procurement", () => {
+    // These four pages re-check ADMIN/SALES themselves; the sidebar must not
+    // advertise them either.
+    const crm = visibleSectionsFor("PROCUREMENT", ["crm", "vendors"]).find((s) => s.key === "crm");
+    const hrefs = crm?.items.map((i) => i.href) ?? [];
+    for (const blocked of ["/crm/projects", "/crm/site-visits", "/crm/amc", "/crm/helpdesk"]) {
+      expect(hrefs).not.toContain(blocked);
+    }
+  });
+
+  it("shows Field to procurement only when the field grant is held", () => {
+    expect(visibleSectionsFor("PROCUREMENT", ["crm", "vendors", "field"]).map((s) => s.key))
+      .toEqual(["crm", "vendors", "field"]);
+    expect(visibleSectionsFor("PROCUREMENT", ["crm", "vendors"]).map((s) => s.key))
+      .toEqual(["crm", "vendors"]);
+  });
+
+  it("keeps procurementCrmHrefs pointing at real CRM nav items", () => {
+    // Guards the constant CrmLayout's tab filter also reads — a renamed route
+    // would otherwise silently drop a tab instead of failing here.
+    const crmHrefs = navSections.find((s) => s.key === "crm")!.items.map((i) => i.href);
+    for (const href of procurementCrmHrefs) {
+      expect(crmHrefs, `procurementCrmHrefs references unknown CRM route ${href}`).toContain(href);
+    }
   });
 
   it("hides CRM from a procurement user who was never granted it", () => {

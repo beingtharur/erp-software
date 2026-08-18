@@ -7,7 +7,9 @@ import { logExport } from "@/lib/export/audit";
 
 // Same access gates as /crm, the page this mirrors.
 export async function GET(request: NextRequest) {
-  await requireRole(["ADMIN", "SALES"]);
+  // PROCUREMENT matches the Pipeline page this mirrors: the Proposal Manager can
+  // read that page, so its Export to Excel button must not dead-end for them.
+  await requireRole(["ADMIN", "SALES", "PROCUREMENT"]);
   await requireModuleAccess("crm");
   const user = await getCurrentUser();
   const organization = await getCurrentOrganization();

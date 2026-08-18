@@ -9,7 +9,9 @@ import { logExport } from "@/lib/export/audit";
 // throughout (route, report key, filename) to match the actual model and
 // existing UI route — "Customer" doesn't exist anywhere in this codebase.
 export async function GET(request: NextRequest) {
-  await requireRole(["ADMIN", "SALES"]);
+  // PROCUREMENT matches the Clients page this mirrors: the Proposal Manager can
+  // read that page, so its Export to Excel button must not dead-end for them.
+  await requireRole(["ADMIN", "SALES", "PROCUREMENT"]);
   await requireModuleAccess("crm");
   const user = await getCurrentUser();
   const organization = await getCurrentOrganization();

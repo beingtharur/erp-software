@@ -114,11 +114,10 @@ export const roleSectionAccess: Record<AccessRole, NavSection["key"][]> = {
   SALES: ["crm", "field"],
   FIELD: ["field"],
   HR: ["hrms"],
-  // Procurement's CRM access is Quotations-only (see AppSidebar and
-  // CrmLayout, which both filter this down to that one item/tab) — this
-  // entry only controls whether the CRM group renders in the sidebar at
-  // all, not which items appear inside it.
-  PROCUREMENT: ["vendors", "crm"],
+  // Procurement is the Proposal Manager's role: Vendors in full, a scoped
+  // slice of CRM (see procurementCrmHrefs), and Field for the one who also
+  // does site work. As always, the per-user grant still decides.
+  PROCUREMENT: ["vendors", "crm", "field"],
   FINANCE: ["finance"],
 };
 
@@ -126,6 +125,12 @@ export const roleSectionAccess: Record<AccessRole, NavSection["key"][]> = {
 // also demands a per-user UserModuleAccess grant, so a section listed in
 // roleSectionAccess but never granted would render a link that bounces straight
 // to /access-denied. Intersecting the two keeps the sidebar honest.
+// Procurement's CRM access is scoped to the proposal workflow — the lead
+// pipeline and client list they quote against, plus Quotations. The other 4
+// CRM pages stay ADMIN/SALES and re-check that themselves. Shared with
+// CrmLayout's tab filter so the sidebar and the tabs can't drift apart.
+export const procurementCrmHrefs = ["/crm", "/crm/clients", "/crm/quotations"];
+
 export function visibleSectionsFor(
   accessRole: AccessRole,
   grantedModules: string[]
@@ -133,11 +138,11 @@ export function visibleSectionsFor(
   const eligible = roleSectionAccess[accessRole];
   return navSections
     .filter((s) => eligible.includes(s.key) && grantedModules.includes(s.key))
-    // Procurement's CRM grant is Quotations-only (see CrmLayout's matching tab
+    // Procurement's CRM grant is a scoped slice (see CrmLayout's matching tab
     // filter) — everyone else sees the section's full item list.
     .map((s) =>
       s.key === "crm" && accessRole === "PROCUREMENT"
-        ? { ...s, items: s.items.filter((item) => item.href === "/crm/quotations") }
+        ? { ...s, items: s.items.filter((item) => procurementCrmHrefs.includes(item.href)) }
         : s
     );
 }

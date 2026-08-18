@@ -16,10 +16,10 @@ import { NewClientSheet } from "@/components/crm/new-client-sheet";
 import { Download } from "lucide-react";
 
 export default async function ClientsPage() {
-  // Procurement passes the layout's broadened gate (Quotations-only) but
-  // isn't meant to reach Clients — re-checked here since the layout alone
-  // can't scope a single role out of one page.
-  await requireRole(["ADMIN", "SALES"]);
+  // Procurement is the Proposal Manager's role: they quote against the lead
+  // pipeline and client list, so Clients is open to them. Projects, Site
+  // Visits, AMC and Helpdesk stay ADMIN/SALES and re-check that themselves.
+  await requireRole(["ADMIN", "SALES", "PROCUREMENT"]);
   const user = await getCurrentUser();
   const clients = await getClients(user.organizationId!);
 
