@@ -879,17 +879,23 @@ enum ProcurementQuotationStatus {
 // the previous row's isLatest to false and inserts a new row sharing groupId,
 // rather than overwriting history.
 model ProcurementQuotation {
-  id              String                     @id @default(cuid())
-  organizationId  String
-  organization    Organization               @relation(fields: [organizationId], references: [id])
-  quotationNumber String
-  vendorName      String
-  projectName     String?
-  clientName      String?
-  quotationDate   DateTime
-  validUntil      DateTime?
-  remarks         String?
-  status          ProcurementQuotationStatus @default(RECEIVED)
+  id                  String                     @id @default(cuid())
+  organizationId      String
+  organization        Organization               @relation(fields: [organizationId], references: [id])
+  quotationNumber     String
+  vendorName          String
+  projectName         String?
+  clientName          String?
+  // Captured manually at upload time: the quoted total lives inside the
+  // uploaded vendor document, not anywhere the app can read it, so the
+  // register can only report a price if someone types it in. Optional —
+  // quotations logged before this field existed have none.
+  clientContactPerson String?
+  quotedPrice         Float?
+  quotationDate       DateTime
+  validUntil          DateTime?
+  remarks             String?
+  status              ProcurementQuotationStatus @default(RECEIVED)
 
   fileUrl    String
   storageKey String

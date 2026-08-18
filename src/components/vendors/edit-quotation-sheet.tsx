@@ -25,6 +25,8 @@ type QuotationForEdit = {
   vendorName: string;
   projectName: string | null;
   clientName: string | null;
+  clientContactPerson: string | null;
+  quotedPrice: number | null;
   quotationDate: Date | string;
   validUntil: Date | string | null;
   remarks: string | null;
@@ -98,6 +100,28 @@ export function EditQuotationSheet({ quotation }: { quotation: QuotationForEdit 
                 id={`clientName-${quotation.id}`}
                 name="clientName"
                 defaultValue={quotation.clientName ?? ""}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`clientContactPerson-${quotation.id}`}>Client contact person</Label>
+              <Input
+                id={`clientContactPerson-${quotation.id}`}
+                name="clientContactPerson"
+                defaultValue={quotation.clientContactPerson ?? ""}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`quotedPrice-${quotation.id}`}>Quoted price (₹)</Label>
+              <Input
+                id={`quotedPrice-${quotation.id}`}
+                name="quotedPrice"
+                type="number"
+                min="0"
+                step="0.01"
+                defaultValue={quotation.quotedPrice ?? ""}
               />
             </div>
           </div>

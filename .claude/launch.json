@@ -4,9 +4,8 @@
     {
       "name": "eostechno-demo-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 3000,
-      "autoPort": true
+      "runtimeArgs": ["run", "dev", "--", "--port", "3002"],
+      "port": 3002
     }
   ]
 }

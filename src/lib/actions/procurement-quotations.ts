@@ -20,11 +20,18 @@ function extensionOf(fileName: string) {
 }
 
 function readMetadataFields(formData: FormData) {
+  // Kept as the raw string too, so validateMetadata can tell "left blank"
+  // (legitimate — the field is optional) apart from "typed something that
+  // isn't a number", which Number() would flatten to NaN either way.
+  const quotedPriceRaw = String(formData.get("quotedPrice") ?? "").trim();
   return {
     quotationNumber: String(formData.get("quotationNumber") ?? "").trim(),
     vendorName: String(formData.get("vendorName") ?? "").trim(),
     projectName: String(formData.get("projectName") ?? "").trim() || null,
     clientName: String(formData.get("clientName") ?? "").trim() || null,
+    clientContactPerson: String(formData.get("clientContactPerson") ?? "").trim() || null,
+    quotedPriceRaw,
+    quotedPrice: quotedPriceRaw ? Number(quotedPriceRaw) : null,
     quotationDate: String(formData.get("quotationDate") ?? ""),
     validUntil: String(formData.get("validUntil") ?? "") || null,
     remarks: String(formData.get("remarks") ?? "").trim() || null,
@@ -40,6 +47,9 @@ function validateMetadata(fields: ReturnType<typeof readMetadataFields>): string
   }
   if (fields.validUntil && Number.isNaN(new Date(fields.validUntil).getTime())) {
     return "Enter a valid 'valid until' date.";
+  }
+  if (fields.quotedPriceRaw && (fields.quotedPrice === null || Number.isNaN(fields.quotedPrice) || fields.quotedPrice < 0)) {
+    return "Enter a valid quoted price, or leave it blank.";
   }
   return null;
 }
@@ -83,6 +93,8 @@ export async function uploadProcurementQuotation(
       vendorName: fields.vendorName,
       projectName: fields.projectName,
       clientName: fields.clientName,
+      clientContactPerson: fields.clientContactPerson,
+      quotedPrice: fields.quotedPrice,
       quotationDate: new Date(fields.quotationDate),
       validUntil: fields.validUntil ? new Date(fields.validUntil) : null,
       remarks: fields.remarks,
@@ -141,6 +153,8 @@ export async function updateProcurementQuotationDetails(
       vendorName: fields.vendorName,
       projectName: fields.projectName,
       clientName: fields.clientName,
+      clientContactPerson: fields.clientContactPerson,
+      quotedPrice: fields.quotedPrice,
       quotationDate: new Date(fields.quotationDate),
       validUntil: fields.validUntil ? new Date(fields.validUntil) : null,
       remarks: fields.remarks,
@@ -189,6 +203,8 @@ export async function uploadProcurementQuotationVersion(
         vendorName: current.vendorName,
         projectName: current.projectName,
         clientName: current.clientName,
+        clientContactPerson: current.clientContactPerson,
+        quotedPrice: current.quotedPrice,
         quotationDate: current.quotationDate,
         validUntil: current.validUntil,
         remarks: current.remarks,

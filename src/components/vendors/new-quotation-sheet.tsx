@@ -66,6 +66,17 @@ export function NewQuotationSheet() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
+              <Label htmlFor="clientContactPerson">Client contact person</Label>
+              <Input id="clientContactPerson" name="clientContactPerson" placeholder="Optional"  />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="quotedPrice">Quoted price (₹)</Label>
+              <Input id="quotedPrice" name="quotedPrice" type="number" min="0" step="0.01" placeholder="Optional"  />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
               <Label htmlFor="quotationDate">Date</Label>
               <Input id="quotationDate" name="quotationDate" type="date" required />
             </div>

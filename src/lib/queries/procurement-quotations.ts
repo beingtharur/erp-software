@@ -4,6 +4,11 @@ import type { Prisma } from "@/generated/prisma/client";
 export type ProcurementQuotationFilters = {
   status?: string;
   search?: string;
+  // Added for the export; the list page doesn't surface these as controls yet
+  // but every filter works from the query string on day one.
+  dateFrom?: Date;
+  dateTo?: Date;
+  clientName?: string;
 };
 
 // Latest-version rows only — version history is a separate lookup
@@ -13,6 +18,15 @@ export async function getProcurementQuotations(organizationId: string, filters: 
   const where: Prisma.ProcurementQuotationWhereInput = { organizationId, isLatest: true };
   if (filters.status && filters.status !== "ALL") {
     where.status = filters.status as never;
+  }
+  if (filters.clientName) {
+    where.clientName = { contains: filters.clientName };
+  }
+  if (filters.dateFrom || filters.dateTo) {
+    where.quotationDate = {
+      ...(filters.dateFrom ? { gte: filters.dateFrom } : {}),
+      ...(filters.dateTo ? { lte: filters.dateTo } : {}),
+    };
   }
   if (filters.search) {
     where.OR = [

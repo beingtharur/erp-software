@@ -15,7 +15,8 @@ import { QuotationVersionSheet } from "@/components/vendors/quotation-version-sh
 import { QuotationStatusMenu } from "@/components/vendors/quotation-status-menu";
 import { QuotationFilters } from "@/components/vendors/quotation-filters";
 import { DeleteQuotationButton } from "@/components/vendors/delete-quotation-button";
-import { Paperclip } from "lucide-react";
+import { Paperclip, Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default async function ProcurementQuotationsPage({
   searchParams,
@@ -31,11 +32,25 @@ export default async function ProcurementQuotationsPage({
     quotations.map((q) => getProcurementQuotationVersions(q.groupId, organizationId))
   );
 
+  // Export what's on screen: the button carries the page's active filters, so
+  // a filtered list and its download can never disagree.
+  const exportParams = new URLSearchParams();
+  if (filters.status && filters.status !== "ALL") exportParams.set("status", filters.status);
+  if (filters.search) exportParams.set("search", filters.search);
+  const exportQuery = exportParams.toString();
+  const exportHref = `/api/exports/procurement-quotations${exportQuery ? `?${exportQuery}` : ""}`;
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <QuotationFilters />
-        <NewQuotationSheet />
+        <div className="flex items-center gap-2">
+          <Button variant="outline" nativeButton={false} render={<a href={exportHref} />}>
+            <Download />
+            Export to Excel
+          </Button>
+          <NewQuotationSheet />
+        </div>
       </div>
       <div className="rounded-lg border">
         <Table>
