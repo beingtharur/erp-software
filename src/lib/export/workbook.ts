@@ -20,8 +20,25 @@ export async function buildReportWorkbook<T>(params: {
   columns: ExportColumn<T>[];
   rows: T[];
   generatedAt?: Date;
+  /** Extra lines between the metadata block and the column headers — e.g.
+   * client/date/status info for a single-record "document" style export
+   * (Customer Quotation Document) or a totals summary section (Salary
+   * Register). Omit for a plain register/list export. */
+  extraHeaderLines?: string[];
+  /** Lines appended after the data rows — e.g. a bolded "Total: ₹X" line.
+   * Omit for a plain register/list export. */
+  footerLines?: string[];
 }): Promise<Buffer> {
-  const { reportTitle, organizationName, sheetName, columns, rows, generatedAt = new Date() } = params;
+  const {
+    reportTitle,
+    organizationName,
+    sheetName,
+    columns,
+    rows,
+    generatedAt = new Date(),
+    extraHeaderLines,
+    footerLines,
+  } = params;
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Exist Digitally — Ops Platform";
@@ -36,6 +53,9 @@ export async function buildReportWorkbook<T>(params: {
   sheet.addRow([`Organization: ${organizationName}`]).font = { bold: true };
   sheet.addRow([reportTitle]).font = { bold: true, size: 12 };
   sheet.addRow([`Generated: ${formatGeneratedAt(generatedAt)}`]).font = { italic: true, color: { argb: "FF666666" } };
+  for (const line of extraHeaderLines ?? []) {
+    sheet.addRow([line]);
+  }
   sheet.addRow([]);
 
   const headerRow = sheet.addRow(columns.map((c) => c.header));
@@ -50,6 +70,10 @@ export async function buildReportWorkbook<T>(params: {
     columns.forEach((c, i) => {
       if (c.numFmt) dataRow.getCell(i + 1).numFmt = c.numFmt;
     });
+  }
+
+  for (const line of footerLines ?? []) {
+    sheet.addRow([line]).font = { bold: true };
   }
 
   sheet.columns.forEach((col, i) => {

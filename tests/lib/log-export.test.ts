@@ -74,4 +74,23 @@ describe("logExport", () => {
       expect.objectContaining({ metadata: { reportType: "budgets" } })
     );
   });
+
+  it("defaults entityId to the report key when no override is given (every list/register export)", async () => {
+    await logExport({ report: "quotations", organizationId: "org_1", userId: "user_1" });
+
+    expect(logAuditMock).toHaveBeenCalledWith(expect.objectContaining({ entityId: "quotations" }));
+  });
+
+  it("uses the given entityId override for a single-record document export", async () => {
+    await logExport({
+      report: "quotation-document",
+      organizationId: "org_1",
+      userId: "user_1",
+      entityId: "QT-1026",
+    });
+
+    expect(logAuditMock).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "export.quotation-document", entityId: "QT-1026" })
+    );
+  });
 });
