@@ -5,7 +5,7 @@ import { buildReportWorkbook, buildExportFilename } from "@/lib/export/workbook"
 import { buildPayslipBreakdown, payslipColumns } from "@/lib/export/payslip";
 import { periodLabel } from "@/lib/export/payroll-register";
 import { logExport } from "@/lib/export/audit";
-import { formatINR, titleCase } from "@/lib/format";
+import { formatDate, formatINR, titleCase } from "@/lib/format";
 
 // Same access gates as /hrms/payroll, the page this mirrors.
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -49,6 +49,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       `Department: ${record.employee.department?.name ?? "—"}`,
       `Period: ${periodLabel(record.month, record.year)}`,
       `Status: ${titleCase(record.status)}`,
+      // PENDING records have no paidOn yet — show a dash rather than an empty
+      // cell, matching how Department renders a missing value on this sheet.
+      `Paid On: ${record.paidOn ? formatDate(record.paidOn) : "—"}`,
     ],
     footerLines: [
       `Gross Earnings: ${formatINR(breakdown.grossEarnings)}`,
