@@ -40,6 +40,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     columns: quotationDocumentColumns,
     rows: quotation.lineItems,
     extraHeaderLines: [
+      // Shown even when blank so the customer-facing document always carries
+      // the field: quotations predating Quotation.enquiryNumber have none,
+      // and it must not fall back to quoteNumber (a different document).
+      `Enquiry No: ${quotation.enquiryNumber ?? "—"}`,
       `Client: ${quotation.client.name}`,
       `Contact: ${quotation.client.contactName}`,
       `Issued: ${formatDate(quotation.issuedOn)}`,
