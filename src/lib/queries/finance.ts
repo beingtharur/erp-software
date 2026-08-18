@@ -113,9 +113,29 @@ export async function getMyExpenseClaims(employeeId: string) {
   });
 }
 
-export async function getBudgets(organizationId: string) {
+export type BudgetFilters = {
+  departmentId?: string;
+  status?: string;
+  startDateFrom?: Date;
+  startDateTo?: Date;
+};
+
+export async function getBudgets(organizationId: string, filters: BudgetFilters = {}) {
+  const startDateFilter =
+    filters.startDateFrom || filters.startDateTo
+      ? {
+          ...(filters.startDateFrom ? { gte: filters.startDateFrom } : {}),
+          ...(filters.startDateTo ? { lte: filters.startDateTo } : {}),
+        }
+      : undefined;
+
   const budgets = await prisma.budget.findMany({
-    where: { requestedBy: { organizationId } },
+    where: {
+      requestedBy: { organizationId },
+      departmentId: filters.departmentId || undefined,
+      status: filters.status ? (filters.status as never) : undefined,
+      startDate: startDateFilter,
+    },
     orderBy: { startDate: "desc" },
     include: { requestedBy: true, department: { select: { id: true, name: true } } },
   });

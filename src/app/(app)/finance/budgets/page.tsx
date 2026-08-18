@@ -3,9 +3,11 @@ import { getCurrentUser } from "@/lib/dal";
 import { getDepartmentOptions } from "@/lib/queries/departments";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { formatDate, formatINR, titleCase } from "@/lib/format";
 import { NewBudgetSheet } from "@/components/finance/new-budget-sheet";
+import { Download } from "lucide-react";
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive"> = {
   PENDING: "secondary",
@@ -22,7 +24,11 @@ export default async function BudgetsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" nativeButton={false} render={<a href="/api/exports/budgets" />}>
+          <Download />
+          Export to Excel
+        </Button>
         <NewBudgetSheet departments={departments} />
       </div>
 
