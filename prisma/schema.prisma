@@ -493,17 +493,23 @@ enum QuotationStatus {
 }
 
 model Quotation {
-  id          String          @id @default(cuid())
-  quoteNumber String          @unique
-  leadId      String?
-  lead        Lead?           @relation(fields: [leadId], references: [id])
-  clientId    String
-  client      Client          @relation(fields: [clientId], references: [id])
-  amount      Float
-  status      QuotationStatus @default(DRAFT)
-  revision    Int             @default(1)
-  validUntil  DateTime
-  issuedOn    DateTime        @default(now())
+  id            String          @id @default(cuid())
+  quoteNumber   String          @unique
+  // Distinct from quoteNumber — an enquiry precedes a quotation in the
+  // client's own workflow (ENQ-001 vs QT-001 are different documents).
+  // Optional and free text: existing quotations predate this field, and
+  // there's no enquiry-tracking feature elsewhere in the app to source it
+  // from, so it's captured manually at creation time only.
+  enquiryNumber String?
+  leadId        String?
+  lead          Lead?           @relation(fields: [leadId], references: [id])
+  clientId      String
+  client        Client          @relation(fields: [clientId], references: [id])
+  amount        Float
+  status        QuotationStatus @default(DRAFT)
+  revision      Int             @default(1)
+  validUntil    DateTime
+  issuedOn      DateTime        @default(now())
 
   lineItems QuotationLineItem[]
   project   Project?

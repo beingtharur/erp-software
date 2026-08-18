@@ -170,13 +170,17 @@ export async function createQuotation(
   _prevState: FormActionState,
   formData: FormData
 ): Promise<FormActionState> {
-  await requireRole(["ADMIN", "SALES"]);
+  // PROCUREMENT is admitted here (and on updateQuotationStatus/reviseQuotation
+  // below) for Sachin's Quotations-only grant — every other CRM action stays
+  // ADMIN/SALES-only, including convertQuotationToProject.
+  await requireRole(["ADMIN", "SALES", "PROCUREMENT"]);
   const user = await getCurrentUser();
   const organizationId = user.organizationId!;
 
   const clientId = String(formData.get("clientId") ?? "");
   const leadId = String(formData.get("leadId") ?? "");
   const validUntil = String(formData.get("validUntil") ?? "");
+  const enquiryNumber = String(formData.get("enquiryNumber") ?? "").trim() || null;
   const descriptions = formData.getAll("description").map((v) => String(v).trim());
   const quantities = formData.getAll("quantity").map((v) => Number(v));
   const unitPrices = formData.getAll("unitPrice").map((v) => Number(v));
@@ -231,6 +235,7 @@ export async function createQuotation(
     return prisma.quotation.create({
       data: {
         quoteNumber,
+        enquiryNumber,
         clientId,
         leadId: validLeadId,
         amount,
@@ -257,7 +262,7 @@ export async function updateQuotationStatus(
   quotationId: string,
   status: "DRAFT" | "SENT" | "UNDER_REVIEW" | "APPROVED" | "REJECTED"
 ) {
-  await requireRole(["ADMIN", "SALES"]);
+  await requireRole(["ADMIN", "SALES", "PROCUREMENT"]);
   const user = await getCurrentUser();
   const organizationId = user.organizationId!;
 
@@ -288,7 +293,7 @@ export async function updateQuotationStatus(
 const REVISABLE_STATUSES = ["SENT", "UNDER_REVIEW", "REJECTED"] as const;
 
 export async function reviseQuotation(quotationId: string) {
-  await requireRole(["ADMIN", "SALES"]);
+  await requireRole(["ADMIN", "SALES", "PROCUREMENT"]);
   const user = await getCurrentUser();
   const organizationId = user.organizationId!;
 

@@ -108,6 +108,10 @@ export function NewQuotationSheet({
           {initialValues?.leadId && (
             <input type="hidden" name="leadId" value={initialValues.leadId} />
           )}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="enquiryNumber">Enquiry No (optional)</Label>
+            <Input id="enquiryNumber" name="enquiryNumber" placeholder="e.g. ENQ-045" />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             {lockedClient ? (
               <div className="flex flex-col gap-1.5">
