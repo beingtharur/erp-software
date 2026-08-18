@@ -15,6 +15,8 @@ import { formatINR } from "@/lib/format";
 import { ProcessPayrollButton } from "@/components/hrms/process-payroll-button";
 import { GeneratePayrollButton } from "@/components/hrms/generate-payroll-button";
 import { UnlockPayrollButton } from "@/components/hrms/unlock-payroll-button";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
 
 const monthLabel = (month: number, year: number) =>
   new Date(year, month - 1).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
@@ -53,7 +55,11 @@ export default async function PayrollPage() {
           </div>
         </div>
       )}
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" nativeButton={false} render={<a href="/api/exports/payroll" />}>
+          <Download />
+          Export to Excel
+        </Button>
         <GeneratePayrollButton />
       </div>
       <div className="rounded-lg border">
@@ -67,13 +73,14 @@ export default async function PayrollPage() {
               <TableHead className="text-right">Deductions</TableHead>
               <TableHead className="text-right">Net Pay</TableHead>
               <TableHead className="text-right">Status</TableHead>
+              <TableHead className="text-right"><span className="sr-only">Payslip</span></TableHead>
               <TableHead className="text-right"><span className="sr-only">Salary structure</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {records.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-sm text-muted-foreground">
+                <TableCell colSpan={9} className="text-center text-sm text-muted-foreground">
                   No payroll records yet. Generate a period above.
                 </TableCell>
               </TableRow>
@@ -103,6 +110,19 @@ export default async function PayrollPage() {
                       {isAdmin && <UnlockPayrollButton payrollId={r.id} />}
                     </div>
                   )}
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      title="Download payslip"
+                      nativeButton={false}
+                      render={<a href={`/api/exports/payroll/${r.id}`} />}
+                    >
+                      <Download className="size-4" />
+                    </Button>
+                  </div>
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end">

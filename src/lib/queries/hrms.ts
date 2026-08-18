@@ -3,7 +3,13 @@ import { getTaskStats } from "@/lib/queries/tasks";
 import { getDepartmentHeadcount } from "@/lib/queries/departments";
 import { getPendingExpenseClaimsForHr } from "@/lib/queries/finance";
 import { attendanceDayValue } from "@/lib/payroll";
-import type { AccessRole, AttendanceStatus, LeaveType, LeaveStatus } from "@/generated/prisma/client";
+import type {
+  AccessRole,
+  AttendanceStatus,
+  LeaveType,
+  LeaveStatus,
+  PayrollStatus,
+} from "@/generated/prisma/client";
 
 function startOfToday() {
   const d = new Date();
@@ -296,9 +302,21 @@ export async function getLeaveRequestsForExport(organizationId: string, filters:
   });
 }
 
-export async function getPayrollRecords(organizationId: string) {
+export type PayrollFilters = {
+  month?: number;
+  year?: number;
+  departmentId?: string;
+  status?: string;
+};
+
+export async function getPayrollRecords(organizationId: string, filters: PayrollFilters = {}) {
   return prisma.payrollRecord.findMany({
-    where: { employee: { organizationId } },
+    where: {
+      employee: { organizationId, departmentId: filters.departmentId || undefined },
+      month: filters.month || undefined,
+      year: filters.year || undefined,
+      status: filters.status ? (filters.status as PayrollStatus) : undefined,
+    },
     orderBy: [{ year: "desc" }, { month: "desc" }],
     include: {
       employee: {
@@ -307,8 +325,25 @@ export async function getPayrollRecords(organizationId: string) {
           // configured — a past PayrollRecord can exist from before a structure
           // was required, e.g. seed data) or "Change Salary Structure".
           salaryStructures: { where: { isActive: true }, take: 1 },
+          department: { select: { name: true } },
         },
       },
+    },
+  });
+}
+
+// For a single payslip: the structure that was actually used to compute this
+// record (via salaryStructureId, fixed at generation time), not the
+// employee's current active one — those can differ once a structure is later
+// changed, and a past payslip must keep reflecting what was true when it was
+// generated. Also unlike getPayrollRecords, this is genuinely nullable: seed
+// data (and any pre-structure-era record) has no linked structure at all.
+export async function getPayrollRecordDetail(id: string, organizationId: string) {
+  return prisma.payrollRecord.findFirst({
+    where: { id, employee: { organizationId } },
+    include: {
+      employee: { include: { department: { select: { name: true } } } },
+      salaryStructure: true,
     },
   });
 }
