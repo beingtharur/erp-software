@@ -4,10 +4,20 @@ import type { AccessRole, Prisma } from "@/generated/prisma/client";
 export type ExpenseClaimFilters = {
   status?: string;
   search?: string;
+  employeeId?: string;
+  departmentId?: string;
+  expenseDateFrom?: Date;
+  expenseDateTo?: Date;
 };
 
 export async function getExpenseClaims(organizationId: string, filters: ExpenseClaimFilters = {}) {
-  const where: Prisma.ExpenseClaimWhereInput = { employee: { organizationId } };
+  const where: Prisma.ExpenseClaimWhereInput = {
+    employee: {
+      organizationId,
+      id: filters.employeeId || undefined,
+      departmentId: filters.departmentId || undefined,
+    },
+  };
   if (filters.status && filters.status !== "ALL") {
     where.status = filters.status as never;
   }
@@ -17,6 +27,12 @@ export async function getExpenseClaims(organizationId: string, filters: ExpenseC
       { description: { contains: filters.search } },
       { employee: { name: { contains: filters.search } } },
     ];
+  }
+  if (filters.expenseDateFrom || filters.expenseDateTo) {
+    where.expenseDate = {
+      ...(filters.expenseDateFrom ? { gte: filters.expenseDateFrom } : {}),
+      ...(filters.expenseDateTo ? { lte: filters.expenseDateTo } : {}),
+    };
   }
 
   const claims = await prisma.expenseClaim.findMany({

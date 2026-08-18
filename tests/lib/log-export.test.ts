@@ -45,4 +45,33 @@ describe("logExport", () => {
 
     expect(logAuditMock).toHaveBeenCalledWith(expect.objectContaining({ metadata: undefined }));
   });
+
+  it("includes reportType in metadata when a caller passes it, alongside filters", async () => {
+    await logExport({
+      report: "expense-claims",
+      organizationId: "org_1",
+      userId: "user_1",
+      reportType: "expense-claims",
+      filters: { status: "PENDING" },
+    });
+
+    expect(logAuditMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: { reportType: "expense-claims", filters: { status: "PENDING" } },
+      })
+    );
+  });
+
+  it("includes reportType alone when no filters are given, without leaving metadata undefined", async () => {
+    await logExport({
+      report: "budgets",
+      organizationId: "org_1",
+      userId: "user_1",
+      reportType: "budgets",
+    });
+
+    expect(logAuditMock).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: { reportType: "budgets" } })
+    );
+  });
 });

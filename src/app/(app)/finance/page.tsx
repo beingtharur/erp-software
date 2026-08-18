@@ -9,12 +9,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatDate, formatDateTime, formatINR, titleCase } from "@/lib/format";
 import { ReimburseClaimButton } from "@/components/finance/reimburse-claim-button";
 import { DecideClaimButtons } from "@/components/finance/decide-claim-buttons";
 import { ExpenseClaimFilters } from "@/components/finance/expense-claim-filters";
 import { ExpenseApproverSetting } from "@/components/finance/expense-approver-setting";
-import { Paperclip } from "lucide-react";
+import { Paperclip, Download } from "lucide-react";
 
 const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   PENDING: "secondary",
@@ -39,9 +40,15 @@ export default async function ExpenseClaimsPage({
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <ExpenseClaimFilters />
-        {user.accessRole === "ADMIN" && (
-          <ExpenseApproverSetting current={organization.expenseApproverRole} />
-        )}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" nativeButton={false} render={<a href="/api/exports/expense-claims" />}>
+            <Download />
+            Export to Excel
+          </Button>
+          {user.accessRole === "ADMIN" && (
+            <ExpenseApproverSetting current={organization.expenseApproverRole} />
+          )}
+        </div>
       </div>
       <div className="rounded-lg border">
         <Table>
