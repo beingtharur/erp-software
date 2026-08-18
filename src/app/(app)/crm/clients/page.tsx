@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getClients } from "@/lib/queries/crm";
-import { getCurrentUser } from "@/lib/dal";
+import { getCurrentUser, requireRole } from "@/lib/dal";
 import {
   Table,
   TableBody,
@@ -16,6 +16,10 @@ import { NewClientSheet } from "@/components/crm/new-client-sheet";
 import { Download } from "lucide-react";
 
 export default async function ClientsPage() {
+  // Procurement passes the layout's broadened gate (Quotations-only) but
+  // isn't meant to reach Clients — re-checked here since the layout alone
+  // can't scope a single role out of one page.
+  await requireRole(["ADMIN", "SALES"]);
   const user = await getCurrentUser();
   const clients = await getClients(user.organizationId!);
 

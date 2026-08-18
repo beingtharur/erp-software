@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getProjects, getClientOptions } from "@/lib/queries/crm";
-import { getCurrentUser } from "@/lib/dal";
+import { getCurrentUser, requireRole } from "@/lib/dal";
 import { NewProjectSheet } from "@/components/crm/new-project-sheet";
 import {
   Table,
@@ -22,6 +22,10 @@ const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
 };
 
 export default async function ProjectsPage() {
+  // Procurement passes the layout's broadened gate (Quotations-only) but
+  // isn't meant to reach Projects — re-checked here since the layout alone
+  // can't scope a single role out of one page.
+  await requireRole(["ADMIN", "SALES"]);
   const user = await getCurrentUser();
   const organizationId = user.organizationId!;
   const [projects, clients] = await Promise.all([

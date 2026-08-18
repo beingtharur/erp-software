@@ -4,13 +4,17 @@ import {
   getProjectOptionsByClient,
   getAssignableEmployees,
 } from "@/lib/queries/crm";
-import { getCurrentUser } from "@/lib/dal";
+import { getCurrentUser, requireRole } from "@/lib/dal";
 import { PipelineBoard } from "@/components/crm/pipeline-board";
 import { NewLeadSheet } from "@/components/crm/new-lead-sheet";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 
 export default async function PipelinePage() {
+  // Procurement passes the layout's broadened gate (Quotations-only) but
+  // isn't meant to reach Pipeline — re-checked here since the layout alone
+  // can't scope a single role out of one page.
+  await requireRole(["ADMIN", "SALES"]);
   const user = await getCurrentUser();
   const organizationId = user.organizationId!;
   const [leads, clients, projects, employees] = await Promise.all([

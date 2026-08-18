@@ -1,6 +1,6 @@
 import { SiteHeader } from "@/components/layout/site-header";
 import { SectionTabs } from "@/components/layout/section-tabs";
-import { requireRole, requireModuleAccess } from "@/lib/dal";
+import { requireRole, requireModuleAccess, getCurrentUser } from "@/lib/dal";
 
 const tabs = [
   { title: "Pipeline", href: "/crm" },
@@ -13,13 +13,20 @@ const tabs = [
 ];
 
 export default async function CrmLayout({ children }: { children: React.ReactNode }) {
-  await requireRole(["ADMIN", "SALES"]);
+  // Procurement's access is Quotations-only — admitted here so they can
+  // reach that one page, but every other CRM page re-checks ADMIN/SALES
+  // itself (defense in depth: this layout gate alone can't scope them out
+  // of the other 6 pages, only out of CRM entirely).
+  await requireRole(["ADMIN", "SALES", "PROCUREMENT"]);
   await requireModuleAccess("crm");
+  const user = await getCurrentUser();
+  const visibleTabs =
+    user.accessRole === "PROCUREMENT" ? tabs.filter((t) => t.href === "/crm/quotations") : tabs;
 
   return (
     <>
       <SiteHeader title="CRM" description="Leads, clients, quotations & service contracts" />
-      <SectionTabs items={tabs} />
+      <SectionTabs items={visibleTabs} />
       <div className="flex flex-1 flex-col p-4 md:p-6">{children}</div>
     </>
   );

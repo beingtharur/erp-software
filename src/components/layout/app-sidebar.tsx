@@ -39,7 +39,16 @@ export function AppSidebar({
 }) {
   const pathname = usePathname();
   const allowedKeys = roleSectionAccess[accessRole];
-  const visibleSections = navSections.filter((s) => allowedKeys.includes(s.key));
+  const visibleSections = navSections
+    .filter((s) => allowedKeys.includes(s.key))
+    // Procurement's CRM grant is Quotations-only (see nav.ts and
+    // CrmLayout's matching tab filter) — everyone else sees the section's
+    // full item list.
+    .map((s) =>
+      s.key === "crm" && accessRole === "PROCUREMENT"
+        ? { ...s, items: s.items.filter((item) => item.href === "/crm/quotations") }
+        : s
+    );
 
   return (
     <Sidebar collapsible="icon">

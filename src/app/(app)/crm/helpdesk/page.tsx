@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getTickets, getClientOptions, getAmcContractOptions, getAssignableEmployees } from "@/lib/queries/crm";
-import { getCurrentUser } from "@/lib/dal";
+import { getCurrentUser, requireRole } from "@/lib/dal";
 import {
   Table,
   TableBody,
@@ -22,6 +22,10 @@ const priorityVariant: Record<string, "default" | "secondary" | "destructive" | 
 };
 
 export default async function HelpdeskPage() {
+  // Procurement passes the layout's broadened gate (Quotations-only) but
+  // isn't meant to reach Helpdesk — re-checked here since the layout alone
+  // can't scope a single role out of one page.
+  await requireRole(["ADMIN", "SALES"]);
   const user = await getCurrentUser();
   const organizationId = user.organizationId!;
   const [tickets, clients, amcContracts, employees] = await Promise.all([

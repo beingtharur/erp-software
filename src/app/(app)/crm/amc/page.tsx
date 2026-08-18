@@ -1,5 +1,5 @@
 import { getAmcContracts, getClientOptions } from "@/lib/queries/crm";
-import { getCurrentUser } from "@/lib/dal";
+import { getCurrentUser, requireRole } from "@/lib/dal";
 import {
   Table,
   TableBody,
@@ -20,6 +20,10 @@ const badgeVariant: Record<string, "default" | "secondary" | "destructive" | "ou
 };
 
 export default async function AmcPage() {
+  // Procurement passes the layout's broadened gate (Quotations-only) but
+  // isn't meant to reach AMC Contracts — re-checked here since the layout
+  // alone can't scope a single role out of one page.
+  await requireRole(["ADMIN", "SALES"]);
   const user = await getCurrentUser();
   const organizationId = user.organizationId!;
   const [contracts, clients] = await Promise.all([

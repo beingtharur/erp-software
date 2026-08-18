@@ -110,7 +110,11 @@ export const roleSectionAccess: Record<AccessRole, NavSection["key"][]> = {
   SALES: ["crm"],
   FIELD: ["field"],
   HR: ["hrms"],
-  PROCUREMENT: ["vendors"],
+  // Procurement's CRM access is Quotations-only (see AppSidebar and
+  // CrmLayout, which both filter this down to that one item/tab) — this
+  // entry only controls whether the CRM group renders in the sidebar at
+  // all, not which items appear inside it.
+  PROCUREMENT: ["vendors", "crm"],
   FINANCE: ["finance"],
 };
 

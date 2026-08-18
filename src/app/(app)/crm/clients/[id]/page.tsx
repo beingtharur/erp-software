@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getClientDetail } from "@/lib/queries/crm";
-import { getCurrentUser } from "@/lib/dal";
+import { getCurrentUser, requireRole } from "@/lib/dal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -22,6 +22,10 @@ export default async function ClientDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  // Procurement passes the layout's broadened gate (Quotations-only) but
+  // isn't meant to reach Clients — re-checked here since the layout alone
+  // can't scope a single role out of one page.
+  await requireRole(["ADMIN", "SALES"]);
   const { id } = await params;
   const user = await getCurrentUser();
   const client = await getClientDetail(id, user.organizationId!);
