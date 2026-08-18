@@ -4,11 +4,12 @@ import { getQuotationDetail } from "@/lib/queries/crm";
 import { getCurrentUser } from "@/lib/dal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { QuotationStatusMenu } from "@/components/crm/quotation-status-menu";
 import { ReviseQuotationButton } from "@/components/crm/revise-quotation-button";
 import { ConvertToProjectSheet } from "@/components/crm/convert-to-project-sheet";
 import { formatDate, formatINR } from "@/lib/format";
-import { FileText, HardHat } from "lucide-react";
+import { FileText, HardHat, Download } from "lucide-react";
 
 export default async function QuotationDetailPage({
   params,
@@ -34,6 +35,15 @@ export default async function QuotationDetailPage({
                 <h2 className="text-lg font-semibold">{quotation.quoteNumber}</h2>
                 <QuotationStatusMenu quotationId={quotation.id} status={quotation.status} />
                 <ReviseQuotationButton quotationId={quotation.id} status={quotation.status} />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  nativeButton={false}
+                  render={<a href={`/api/exports/quotations/${quotation.id}`} />}
+                >
+                  <Download />
+                  Export
+                </Button>
               </div>
               <p className="text-sm text-muted-foreground">
                 <Link href={`/crm/clients/${quotation.clientId}`} className="hover:underline">

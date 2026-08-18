@@ -12,6 +12,8 @@ import {
 import { formatDate, formatINR } from "@/lib/format";
 import { QuotationStatusMenu } from "@/components/crm/quotation-status-menu";
 import { NewQuotationSheet } from "@/components/crm/new-quotation-sheet";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
 
 export default async function QuotationsPage() {
   const user = await getCurrentUser();
@@ -24,7 +26,11 @@ export default async function QuotationsPage() {
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" nativeButton={false} render={<a href="/api/exports/quotations" />}>
+          <Download />
+          Export to Excel
+        </Button>
         <NewQuotationSheet clients={clients} leads={leads} />
       </div>
       <div className="rounded-lg border">

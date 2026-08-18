@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { computeAmcStatus } from "@/lib/amc-status";
-import type { LeadStage, LeadSource, ProductLine, Industry } from "@/generated/prisma/client";
+import type { LeadStage, LeadSource, ProductLine, Industry, QuotationStatus } from "@/generated/prisma/client";
 
 export async function getPipelineLeads(organizationId: string) {
   return prisma.lead.findMany({
@@ -124,11 +124,37 @@ export async function getClientDetail(id: string, organizationId: string) {
   };
 }
 
-export async function getQuotations(organizationId: string) {
+export type QuotationFilters = {
+  dateFrom?: Date;
+  dateTo?: Date;
+  clientId?: string;
+  status?: string;
+  revision?: number;
+};
+
+// lineItems is additive to the include — the list page ignores the extra
+// field, and the export (System Quoted's fallback when no lead is linked)
+// needs it. No default date range — a quotation register is register data
+// (like Vendor/Lead/Client), not a recurring daily log.
+export async function getQuotations(organizationId: string, filters: QuotationFilters = {}) {
+  const issuedOnFilter =
+    filters.dateFrom || filters.dateTo
+      ? {
+          ...(filters.dateFrom ? { gte: filters.dateFrom } : {}),
+          ...(filters.dateTo ? { lte: filters.dateTo } : {}),
+        }
+      : undefined;
+
   return prisma.quotation.findMany({
-    where: { client: { organizationId } },
+    where: {
+      client: { organizationId },
+      clientId: filters.clientId || undefined,
+      status: filters.status ? (filters.status as QuotationStatus) : undefined,
+      revision: filters.revision || undefined,
+      issuedOn: issuedOnFilter,
+    },
     orderBy: { issuedOn: "desc" },
-    include: { client: true, lead: true },
+    include: { client: true, lead: true, lineItems: { orderBy: { sortOrder: "asc" } } },
   });
 }
 
