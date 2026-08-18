@@ -59,6 +59,21 @@ export async function createSession(payload: SessionPayload) {
     sameSite: "lax",
     path: "/",
   });
+  // A Secure cookie is only ever transmitted over HTTPS — set one on a site
+  // served over plain HTTP and every browser silently discards it, so the user
+  // appears to log in and is bounced straight back to /login. Logged so that
+  // failure is visible in the server log instead of being invisible.
+  console.log(
+    `[auth] session-cookie-set ${JSON.stringify({
+      secure: secureCookie,
+      sameSite: "lax",
+      httpOnly: true,
+      expiresAt: expiresAt.toISOString(),
+      cookieSecureEnv: process.env.COOKIE_SECURE ?? "(unset)",
+      nodeEnv: process.env.NODE_ENV,
+      warning: secureCookie ? "cookie will be DROPPED by the browser unless the site is served over HTTPS" : null,
+    })}`
+  );
 }
 
 export async function deleteSession() {

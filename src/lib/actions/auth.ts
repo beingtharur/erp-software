@@ -8,14 +8,40 @@ import { roleHome, roleSectionAccess } from "@/lib/nav";
 import { buildInitialSubscription } from "@/lib/billing/dev-mode";
 import { withUniqueCodeRetry } from "@/lib/sequence";
 import { logAudit } from "@/lib/audit";
+import { headers } from "next/headers";
 
 export type LoginState = { error?: string } | undefined;
 
+// Describes a credential WITHOUT ever logging it. Login is deterministic
+// server-side — same bytes plus same database always give the same answer — so
+// when one device succeeds and another fails on "the same" password, the bytes
+// actually submitted must differ. These are the differences that hide: an
+// autofilled trailing space, a non-breaking space from a password manager, a
+// smart quote from a mobile keyboard.
+function fingerprint(value: string) {
+  return {
+    length: value.length,
+    leadingWhitespace: /^\s/.test(value),
+    trailingWhitespace: /\s$/.test(value),
+    nonAscii: /[^\x20-\x7E]/.test(value),
+    firstCode: value.charCodeAt(0),
+    lastCode: value.charCodeAt(value.length - 1),
+  };
+}
+
+function authLog(stage: string, data: Record<string, unknown>) {
+  console.log(`[auth] ${stage} ${JSON.stringify(data)}`);
+}
+
 export async function login(_prevState: LoginState, formData: FormData): Promise<LoginState> {
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const rawEmail = String(formData.get("email") ?? "");
+  const email = rawEmail.trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
 
+  const ua = (await headers()).get("user-agent") ?? "unknown";
+
   if (!email || !password) {
+    authLog("missing-field", { emailPresent: Boolean(email), passwordPresent: Boolean(password), ua });
     return { error: "Enter both email and password." };
   }
 
@@ -24,17 +50,54 @@ export async function login(_prevState: LoginState, formData: FormData): Promise
     include: { employee: true },
   });
 
-  if (!user || !verifyPassword(password, user.passwordHash, user.passwordSalt)) {
+  if (!user) {
+    // A near-match means the row exists but the stored address doesn't equal the
+    // normalized one — e.g. it was saved with capitals, which SQLite's
+    // case-sensitive unique index will never match after .toLowerCase().
+    const near = await prisma.user.findFirst({
+      where: { email: { contains: email } },
+      select: { email: true },
+    });
+    authLog("lookup-miss", {
+      submittedEmail: rawEmail,
+      normalizedEmail: email,
+      emailFingerprint: fingerprint(rawEmail),
+      caseOrWhitespaceNearMatch: near?.email ?? null,
+      ua,
+    });
     return { error: "Invalid email or password." };
   }
 
-  await createSession({
-    userId: user.id,
-    accessRole: user.accessRole,
-    name: user.employee?.name ?? user.email,
-    organizationId: user.organizationId,
-    isSuperAdmin: user.isSuperAdmin,
-  });
+  if (!verifyPassword(password, user.passwordHash, user.passwordSalt)) {
+    // Re-check against the trimmed password. If THIS passes, the account and
+    // the password are both correct and the only problem was invisible
+    // whitespace the device added — which is exactly the "works on one device,
+    // fails on another" report. Diagnostic only: the login still fails.
+    const trimmedWouldPass = verifyPassword(password.trim(), user.passwordHash, user.passwordSalt);
+    authLog("password-mismatch", {
+      email,
+      userId: user.id,
+      passwordFingerprint: fingerprint(password),
+      trimmedWouldPass,
+      ua,
+    });
+    return { error: "Invalid email or password." };
+  }
+
+  authLog("verified", { email, userId: user.id, accessRole: user.accessRole, ua });
+
+  try {
+    await createSession({
+      userId: user.id,
+      accessRole: user.accessRole,
+      name: user.employee?.name ?? user.email,
+      organizationId: user.organizationId,
+      isSuperAdmin: user.isSuperAdmin,
+    });
+  } catch (err) {
+    authLog("session-create-failed", { email, userId: user.id, error: String(err), ua });
+    throw err;
+  }
 
   redirect(user.isSuperAdmin ? "/platform-admin" : (roleHome[user.accessRole] ?? "/"));
 }
