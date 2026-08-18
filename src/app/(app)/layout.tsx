@@ -4,7 +4,7 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { TrialBanner } from "@/components/layout/trial-banner";
 import { CompleteProfileBanner } from "@/components/layout/complete-profile-banner";
 import { IncompleteProfileBanner } from "@/components/layout/incomplete-profile-banner";
-import { getCurrentUser, requireActiveAccess } from "@/lib/dal";
+import { getCurrentUser, requireActiveAccess, getGrantedModules } from "@/lib/dal";
 import { getDepartmentOptions } from "@/lib/queries/departments";
 
 export default async function AppShellLayout({
@@ -19,6 +19,9 @@ export default async function AppShellLayout({
     redirect("/platform-admin");
   }
   const access = await requireActiveAccess();
+  // Drives which nav sections the sidebar renders — a section the user holds
+  // no grant for would otherwise link straight to /access-denied.
+  const grantedModules = await getGrantedModules();
   // Only needed by the profile banner, which renders only for a user who has no
   // employee record yet — so this stays off the hot path for everyone else.
   const departments = user.employeeId ? [] : await getDepartmentOptions(user.organizationId!);
@@ -31,6 +34,7 @@ export default async function AppShellLayout({
       <AppSidebar
         accessRole={user.accessRole}
         userName={user.employee?.name ?? user.email}
+        grantedModules={grantedModules}
       />
       <SidebarInset>
         <TrialBanner access={access} />

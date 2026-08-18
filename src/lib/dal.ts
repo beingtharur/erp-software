@@ -87,6 +87,18 @@ export async function requireActiveAccess(): Promise<EffectiveAccess> {
   return access;
 }
 
+// Every module this specific user has been granted. Read by the app shell so
+// the sidebar can hide sections the user holds no grant for — the grant itself
+// is still enforced server-side by requireModuleAccess() below.
+export const getGrantedModules = cache(async (): Promise<string[]> => {
+  const session = await verifySession();
+  const grants = await prisma.userModuleAccess.findMany({
+    where: { userId: session.userId },
+    select: { module: true },
+  });
+  return grants.map((g) => g.module);
+});
+
 // Module-level gate, layered on top of requireActiveAccess(): the org's plan
 // must include the module, AND this specific user must be granted it. Frontend
 // nav hiding is UX only — this is the actual security boundary.

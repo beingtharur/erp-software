@@ -9,7 +9,10 @@ const tabs = [
 ];
 
 export default async function FieldLayout({ children }: { children: React.ReactNode }) {
-  await requireRole(["ADMIN", "FIELD"]);
+  // SALES is admitted so a sales rep granted the field module (Rajvinder) can
+  // reach Live Map, Visit History and Geofences. requireModuleAccess below is
+  // what actually decides: a sales rep without the grant still gets bounced.
+  await requireRole(["ADMIN", "FIELD", "SALES"]);
   await requireModuleAccess("field");
 
   return (

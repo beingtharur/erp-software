@@ -107,7 +107,11 @@ export const navSections: NavSection[] = [
 
 export const roleSectionAccess: Record<AccessRole, NavSection["key"][]> = {
   ADMIN: ["crm", "hrms", "vendors", "field", "finance"],
-  SALES: ["crm"],
+  // Field is listed for SALES so a sales rep who has been granted the field
+  // module (Rajvinder) can see and reach GPS & Field Tracking. Listing it here
+  // only makes the section *eligible* — visibleSectionsFor() still requires the
+  // per-user UserModuleAccess grant, so sales reps without it see nothing new.
+  SALES: ["crm", "field"],
   FIELD: ["field"],
   HR: ["hrms"],
   // Procurement's CRM access is Quotations-only (see AppSidebar and
@@ -117,6 +121,26 @@ export const roleSectionAccess: Record<AccessRole, NavSection["key"][]> = {
   PROCUREMENT: ["vendors", "crm"],
   FINANCE: ["finance"],
 };
+
+// Role eligibility alone isn't enough to show a nav section: requireModuleAccess()
+// also demands a per-user UserModuleAccess grant, so a section listed in
+// roleSectionAccess but never granted would render a link that bounces straight
+// to /access-denied. Intersecting the two keeps the sidebar honest.
+export function visibleSectionsFor(
+  accessRole: AccessRole,
+  grantedModules: string[]
+): NavSection[] {
+  const eligible = roleSectionAccess[accessRole];
+  return navSections
+    .filter((s) => eligible.includes(s.key) && grantedModules.includes(s.key))
+    // Procurement's CRM grant is Quotations-only (see CrmLayout's matching tab
+    // filter) — everyone else sees the section's full item list.
+    .map((s) =>
+      s.key === "crm" && accessRole === "PROCUREMENT"
+        ? { ...s, items: s.items.filter((item) => item.href === "/crm/quotations") }
+        : s
+    );
+}
 
 export const roleHome: Record<AccessRole, string> = {
   ADMIN: "/",

@@ -24,7 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { navSections, roleSectionAccess, roleLabel } from "@/lib/nav";
+import { visibleSectionsFor, roleLabel } from "@/lib/nav";
 import { logout } from "@/lib/actions/auth";
 import { initials } from "@/lib/format";
 import { Boxes, User, LogOut, ShieldCheck, ClipboardCheck, ListChecks } from "lucide-react";
@@ -33,22 +33,17 @@ import type { AccessRole } from "@/generated/prisma/client";
 export function AppSidebar({
   accessRole,
   userName,
+  grantedModules,
 }: {
   accessRole: AccessRole;
   userName: string;
+  // The user's own UserModuleAccess grants. Intersected with the role's
+  // eligible sections so the sidebar never advertises a module this specific
+  // user would be bounced from by requireModuleAccess().
+  grantedModules: string[];
 }) {
   const pathname = usePathname();
-  const allowedKeys = roleSectionAccess[accessRole];
-  const visibleSections = navSections
-    .filter((s) => allowedKeys.includes(s.key))
-    // Procurement's CRM grant is Quotations-only (see nav.ts and
-    // CrmLayout's matching tab filter) — everyone else sees the section's
-    // full item list.
-    .map((s) =>
-      s.key === "crm" && accessRole === "PROCUREMENT"
-        ? { ...s, items: s.items.filter((item) => item.href === "/crm/quotations") }
-        : s
-    );
+  const visibleSections = visibleSectionsFor(accessRole, grantedModules);
 
   return (
     <Sidebar collapsible="icon">

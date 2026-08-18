@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { navSections, roleSectionAccess, roleHome, roleLabel } from "@/lib/nav";
+import { navSections, roleSectionAccess, roleHome, roleLabel, visibleSectionsFor } from "@/lib/nav";
 import { AccessRole } from "@/generated/prisma/enums";
 
 const allRoles = Object.values(AccessRole);
@@ -45,5 +45,46 @@ describe("RBAC wiring (nav.ts)", () => {
       });
       expect(allowedHrefs, `roleHome.${role} ("${home}") isn't reachable by ${role}'s own section access`).toContain(home);
     }
+  });
+});
+
+describe("visibleSectionsFor — role eligibility ∩ per-user grants", () => {
+  const keys = (role: Parameters<typeof visibleSectionsFor>[0], grants: string[]) =>
+    visibleSectionsFor(role, grants).map((s) => s.key);
+
+  it("shows Field to a sales rep who holds the field grant", () => {
+    expect(keys("SALES", ["crm", "field"])).toEqual(["crm", "field"]);
+  });
+
+  it("hides Field from a sales rep who does not hold the grant", () => {
+    // The regression guard for the other sales reps: making the section
+    // role-eligible must not hand it to everyone with the role.
+    expect(keys("SALES", ["crm"])).toEqual(["crm"]);
+  });
+
+  it("never shows a section the role is not eligible for, even when granted", () => {
+    // Grants alone can't unlock a module whose layout role gate would reject
+    // the user anyway — that link would dead-end at /access-denied.
+    expect(keys("SALES", ["crm", "field", "finance", "hrms", "vendors"])).toEqual(["crm", "field"]);
+  });
+
+  it("exposes all three field pages once Field is visible", () => {
+    const field = visibleSectionsFor("SALES", ["crm", "field"]).find((s) => s.key === "field");
+    expect(field?.items.map((i) => i.href)).toEqual(["/field", "/field/visits", "/field/geofences"]);
+  });
+
+  it("keeps procurement's CRM entry filtered to Quotations only", () => {
+    const crm = visibleSectionsFor("PROCUREMENT", ["crm", "vendors"]).find((s) => s.key === "crm");
+    expect(crm?.items.map((i) => i.href)).toEqual(["/crm/quotations"]);
+  });
+
+  it("hides CRM from a procurement user who was never granted it", () => {
+    expect(keys("PROCUREMENT", ["vendors"])).toEqual(["vendors"]);
+  });
+
+  it("still shows an admin every section they hold", () => {
+    expect(new Set(keys("ADMIN", ["crm", "hrms", "vendors", "field", "finance"]))).toEqual(
+      new Set(navSections.map((s) => s.key))
+    );
   });
 });
